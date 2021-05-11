@@ -32,6 +32,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
+#define FTR_RC_CAP         1 // Add support for Capped CRF
+                                 // Add the support to re-encode when max bitrate is specified for CRF
+                                 // Add the rate stat queue for the storing rate data
 
 //FOR DEBUGGING - Do not remove
 #define NO_ENCDEC               0 // bypass encDec to test cmpliance of MD. complained achieved when skip_flag is OFF. Port sample code from VCI-SW_AV1_Candidate1 branch
@@ -49,6 +52,7 @@ extern "C" {
 #define DEBUG_SCALING           0
 #define DEBUG_TF                0
 #define DEBUG_UPSCALING         0
+#define DEBUG_RC_CAP_LOG        0 // Prints for RC cap
 #ifdef __cplusplus
 }
 #endif // __cplusplus
