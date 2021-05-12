@@ -32,9 +32,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
-#define FTR_RC_CAP         1 // Add support for Capped CRF
+#define FTR_RC_CAP             1 // Add support for Capped CRF
                                  // Add the support to re-encode when max bitrate is specified for CRF
                                  // Add the rate stat queue for the storing rate data
+#define FTR_2PASS_CBR          1 // to support 2pass CBR
+#define FTR_1PASS_CBR          1 // to support 1pass CBR
 
 //FOR DEBUGGING - Do not remove
 #define NO_ENCDEC               0 // bypass encDec to test cmpliance of MD. complained achieved when skip_flag is OFF. Port sample code from VCI-SW_AV1_Candidate1 branch
