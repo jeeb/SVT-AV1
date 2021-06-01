@@ -131,14 +131,22 @@ void *dlf_kernel(void *input_ptr) {
                                       input_buffer->width >> 1,
                                       input_buffer->height >> 1);
         }
-
+#if CLN_DLF_SIGNALS
+        EbBool   dlf_enable_flag = (EbBool)pcs_ptr->parent_pcs_ptr->dlf_ctrls.enabled;
+#else
         EbBool   dlf_enable_flag = (EbBool)pcs_ptr->parent_pcs_ptr->loop_filter_mode;
+#endif
         uint16_t total_tile_cnt  = pcs_ptr->parent_pcs_ptr->av1_cm->tiles_info.tile_cols *
             pcs_ptr->parent_pcs_ptr->av1_cm->tiles_info.tile_rows;
         // Jing: Move sb level lf to here if tile_parallel
+#if CLN_DLF_SIGNALS
+        if ((dlf_enable_flag && !pcs_ptr->parent_pcs_ptr->dlf_ctrls.sb_based_dlf) ||
+            (dlf_enable_flag && pcs_ptr->parent_pcs_ptr->dlf_ctrls.sb_based_dlf && total_tile_cnt > 1)) {
+#else
         if ((dlf_enable_flag && pcs_ptr->parent_pcs_ptr->loop_filter_mode >= 2) ||
             (dlf_enable_flag && pcs_ptr->parent_pcs_ptr->loop_filter_mode == 1 &&
              total_tile_cnt > 1)) {
+#endif
             EbPictureBufferDesc *recon_buffer;
 
             if (pcs_ptr->parent_pcs_ptr->is_used_as_reference_flag == EB_TRUE)
@@ -155,14 +163,14 @@ void *dlf_kernel(void *input_ptr) {
                     : pcs_ptr->parent_pcs_ptr->enc_dec_ptr->recon_picture_ptr;
 
             svt_av1_loop_filter_init(pcs_ptr);
-
+#if !CLN_DLF_SIGNALS
             if (pcs_ptr->parent_pcs_ptr->loop_filter_mode == 2) {
                 svt_av1_pick_filter_level(
                     (EbPictureBufferDesc *)pcs_ptr->parent_pcs_ptr->enhanced_picture_ptr,
                     pcs_ptr,
                     LPF_PICK_FROM_Q);
             }
-
+#endif
             svt_av1_pick_filter_level(
                 (EbPictureBufferDesc *)pcs_ptr->parent_pcs_ptr->enhanced_picture_ptr,
                 pcs_ptr,
