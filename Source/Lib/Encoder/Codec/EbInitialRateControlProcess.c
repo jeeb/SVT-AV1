@@ -316,9 +316,11 @@ void store_extended_group(
                 break;
         }
     }
-
+#if !OPT_COMBINE_TPL_FOR_LAD
     SequenceControlSet *scs_ptr = (SequenceControlSet *)pcs->scs_wrapper_ptr->object_ptr;
-    if (scs_ptr->lad_mg) {
+    if (scs_ptr->lad_mg)
+#endif
+    {
         pcs->tpl_group_size = pcs->ntpl_group_size;
         memset(pcs->tpl_valid_pic, 0, MAX_TPL_EXT_GROUP_SIZE * sizeof(uint8_t));
         pcs->tpl_valid_pic[0] = 1;
@@ -548,7 +550,18 @@ void *initial_rate_control_kernel(void *input_ptr) {
 
             // Release Pa Ref pictures when not needed
             // Release Pa ref after when TPL is OFF
+#if FIX_LAD_MG_0_HANG
+            // Release Pa Ref if mg_lad is 0 and P slice (not belonging to any TPL group)
+            uint8_t release_pa_ref = 0;
             if (scs_ptr->static_config.enable_tpl_la == 0)
+                release_pa_ref =1;
+            else if (scs_ptr->lad_mg == 0 && pcs_ptr->slice_type == P_SLICE)
+                release_pa_ref =1;
+
+            if (release_pa_ref)
+#else
+            if (scs_ptr->static_config.enable_tpl_la == 0)
+#endif
                 release_pa_reference_objects(scs_ptr, pcs_ptr);
 
             /*In case Look-Ahead is zero there is no need to place pictures in the

@@ -821,9 +821,11 @@ static int cqp_qindex_calc_tpl_la(PictureControlSet *pcs_ptr, RATE_CONTROL *rc, 
         // As a results, we defined a factor to adjust r0
         if (pcs_ptr->parent_pcs_ptr->frm_hdr.frame_type != KEY_FRAME) {
             double factor;
+#if !OPT_COMBINE_TPL_FOR_LAD
             if (!scs_ptr->lad_mg)
                 factor = 2;
             else
+#endif
                 factor = 1;
             pcs_ptr->parent_pcs_ptr->r0 = pcs_ptr->parent_pcs_ptr->r0 / factor;
         }
@@ -838,6 +840,14 @@ static int cqp_qindex_calc_tpl_la(PictureControlSet *pcs_ptr, RATE_CONTROL *rc, 
                 pcs_ptr->parent_pcs_ptr->r0 = pcs_ptr->parent_pcs_ptr->r0 / factor;
             }
         }
+#if OPT_COMBINE_TPL_FOR_LAD
+        if (!scs_ptr->lad_mg) {
+            double div_factor = pcs_ptr->parent_pcs_ptr->tpl_ctrls.r0_adjust_factor ?
+                pcs_ptr->parent_pcs_ptr->used_tpl_frame_num * 0.2 :
+                1.0;
+            pcs_ptr->parent_pcs_ptr->r0 = pcs_ptr->parent_pcs_ptr->r0 / div_factor;
+        }
+#endif
         // when frames_to_key not available, i.e. in 1 pass encoding
         rc->kf_boost = get_cqp_kf_boost_from_r0(
             pcs_ptr->parent_pcs_ptr->r0, -1, scs_ptr->input_resolution);
@@ -861,7 +871,9 @@ static int cqp_qindex_calc_tpl_la(PictureControlSet *pcs_ptr, RATE_CONTROL *rc, 
         // As a results, we defined a factor to adjust r0
         if (pcs_ptr->parent_pcs_ptr->temporal_layer_index == 0) {
             double div_factor = 1;
+#if !OPT_COMBINE_TPL_FOR_LAD
             if (scs_ptr->lad_mg)
+#endif
             {
                 div_factor = pcs_ptr->parent_pcs_ptr->tpl_ctrls.r0_adjust_factor ?
                     pcs_ptr->parent_pcs_ptr->used_tpl_frame_num * pcs_ptr->parent_pcs_ptr->tpl_ctrls.r0_adjust_factor :
@@ -1290,7 +1302,9 @@ void process_tpl_stats_frame_kf_gfu_boost(PictureControlSet *pcs_ptr) {
         // As a results, we defined a factor to adjust r0
         if (pcs_ptr->parent_pcs_ptr->slice_type != 2) {
             double div_factor = 1;
+#if !OPT_COMBINE_TPL_FOR_LAD
             if (scs_ptr->lad_mg)
+#endif
             {
                 div_factor = pcs_ptr->parent_pcs_ptr->tpl_ctrls.r0_adjust_factor ?
                     pcs_ptr->parent_pcs_ptr->used_tpl_frame_num * pcs_ptr->parent_pcs_ptr->tpl_ctrls.r0_adjust_factor :
@@ -1313,7 +1327,9 @@ void process_tpl_stats_frame_kf_gfu_boost(PictureControlSet *pcs_ptr) {
         // As a results, we defined a factor to adjust r0
         if (pcs_ptr->parent_pcs_ptr->slice_type != 2) {
             double div_factor = 1;
+#if !OPT_COMBINE_TPL_FOR_LAD
             if (scs_ptr->lad_mg)
+#endif
             {
                 div_factor = pcs_ptr->parent_pcs_ptr->tpl_ctrls.r0_adjust_factor ?
                     pcs_ptr->parent_pcs_ptr->used_tpl_frame_num * pcs_ptr->parent_pcs_ptr->tpl_ctrls.r0_adjust_factor :
