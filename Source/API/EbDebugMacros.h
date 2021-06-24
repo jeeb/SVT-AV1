@@ -37,12 +37,8 @@ extern "C" {
                                  // Add the rate stat queue for the storing rate data
 #define FTR_2PASS_CBR          1 // to support 2pass CBR
 #define FTR_1PASS_CBR          1 // to support 1pass CBR
-#if 0 // Used only for debugging , please keep them OFF
-#define SVT_05 1
-#define PRIVATE_MACROS 1
-#else
-@SVT_AV1_DEBUG_MACROS_OUTPUT@
-#endif
+#define SVT_05          1
+#define PRIVATE_MACROS   1
 
 #if SVT_05 //SVT05_TOBE_PORTED
 #define CLN_FTR_EARLY_DEPTH_REMOVAL        1 // Clean-up cppcheck issues introduced with the FTR_EARLY_DEPTH_REMOVAL macro
