@@ -843,6 +843,13 @@ typedef struct EbSvtAv1EncConfiguration {
     * 1: full swing.
     Default is 0. */
     uint8_t color_range;
+#if GOP_BASED_DYNAMIC_MINIGOP
+    uint8_t enable_adaptive_mini_gop;
+    uint8_t max_heirachical_level;
+#endif
+#if OPT_FIRST_PASS
+    uint8_t final_pass_rc_mode;
+#endif
 } EbSvtAv1EncConfiguration;
 
 /**
