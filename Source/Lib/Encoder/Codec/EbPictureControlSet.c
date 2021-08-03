@@ -322,7 +322,11 @@ EbErrorType create_neighbor_array_units(InitData *data, size_t count) {
     return EB_ErrorNone;
 }
 
+#if CLN_RTIME_MEM_ALLOC
+EbErrorType rtime_alloc_palette_tokens(SequenceControlSet *scs_ptr, PictureControlSet *child_pcs_ptr) {
+#else
 EbErrorType alloc_palette_tokens(SequenceControlSet *scs_ptr, PictureControlSet *child_pcs_ptr) {
+#endif
     if (child_pcs_ptr->parent_pcs_ptr->frm_hdr.allow_screen_content_tools) {
         if (scs_ptr->static_config.screen_content_mode) {
             uint32_t     mi_cols = scs_ptr->max_input_luma_width >> MI_SIZE_LOG2;
@@ -351,9 +355,10 @@ EbErrorType recon_coef_ctor(EncDecSet *object_ptr, EbPtr object_init_data_ptr) {
     const uint16_t picture_sb_height = (uint16_t)(
         (init_data_ptr->picture_height + init_data_ptr->sb_sz - 1) / init_data_ptr->sb_sz);
     uint16_t    sb_index;
+#if !FIX_QUANT_COEFF_BUFF
     uint16_t    sb_origin_x;
     uint16_t    sb_origin_y;
-
+#endif
     EbBool         is_16bit      = init_data_ptr->bit_depth > 8 ? EB_TRUE : EB_FALSE;
 
 
@@ -388,6 +393,13 @@ EbErrorType recon_coef_ctor(EncDecSet *object_ptr, EbPtr object_init_data_ptr) {
         EB_NEW(object_ptr->recon_picture16bit_ptr,
                svt_recon_picture_buffer_desc_ctor,
                (EbPtr)&input_pic_buf_desc_init_data);
+#if FTR_10BIT_MDS3_REG_PD1 && !OPT_BYPASS_ED_10BIT
+        // Need 8bit NREF recon buffer if bypassing EncDec when using 8bit MD to store RECON for NREF picture INTRA prediction
+        // TODO: Copy to a local buffer in MD instead
+        EB_NEW(object_ptr->recon_picture_ptr,
+            svt_recon_picture_buffer_desc_ctor,
+            (EbPtr)&input_pic_buf_desc_init_data);
+#endif
     } else {
         EB_NEW(object_ptr->recon_picture_ptr, //OMK
                svt_recon_picture_buffer_desc_ctor,
@@ -404,7 +416,7 @@ EbErrorType recon_coef_ctor(EncDecSet *object_ptr, EbPtr object_init_data_ptr) {
    // object_ptr->sb_total_count          = picture_sb_width * picture_sb_height;
     object_ptr->sb_total_count_unscaled = picture_sb_width * picture_sb_height;
     EB_ALLOC_PTR_ARRAY(object_ptr->quantized_coeff, object_ptr->sb_total_count_unscaled);
-
+#if !FIX_QUANT_COEFF_BUFF
     sb_origin_x = 0;
     sb_origin_y = 0;
 
@@ -415,7 +427,7 @@ EbErrorType recon_coef_ctor(EncDecSet *object_ptr, EbPtr object_init_data_ptr) {
         (init_data_ptr->picture_height + init_data_ptr->sb_size_pix - 1) /
         init_data_ptr->sb_size_pix);
     const uint16_t all_sb = picture_sb_w * picture_sb_h;
-
+#endif
 
     //object_ptr->sb_total_count_pix = all_sb;
 
@@ -430,17 +442,19 @@ EbErrorType recon_coef_ctor(EncDecSet *object_ptr, EbPtr object_init_data_ptr) {
     coeff_init_data.top_padding        = 0;
     coeff_init_data.bot_padding        = 0;
     coeff_init_data.split_mode         = EB_FALSE;
+#if FIX_QUANT_COEFF_BUFF
+    for (sb_index = 0; sb_index < object_ptr->sb_total_count_unscaled; ++sb_index) {
+#else
     for (sb_index = 0; sb_index < all_sb; ++sb_index) {
-
-
-
-    EB_NEW(object_ptr->quantized_coeff[sb_index], //OMK2
-           svt_picture_buffer_desc_ctor,
-           (EbPtr)&coeff_init_data);
-
+#endif
+        EB_NEW(object_ptr->quantized_coeff[sb_index], //OMK2
+               svt_picture_buffer_desc_ctor,
+               (EbPtr)&coeff_init_data);
+#if !FIX_QUANT_COEFF_BUFF
         // Increment the Order in coding order (Raster Scan Order)
         sb_origin_y = (sb_origin_x == picture_sb_w - 1) ? sb_origin_y + 1 : sb_origin_y;
         sb_origin_x = (sb_origin_x == picture_sb_w - 1) ? 0 : sb_origin_x + 1;
+#endif
     }
 
     return EB_ErrorNone;
@@ -922,7 +936,6 @@ EbErrorType picture_control_set_ctor(PictureControlSet *object_ptr, EbPtr object
                    NEIGHBOR_ARRAY_UNIT_TOP_AND_LEFT_ONLY_MASK);
         }
     }
-
     // EncDec Neighbor
     //EncDec
     EB_ALLOC_PTR_ARRAY(object_ptr->ep_intra_luma_mode_neighbor_array, total_tile_cnt);
@@ -942,7 +955,6 @@ EbErrorType picture_control_set_ctor(PictureControlSet *object_ptr, EbPtr object
     EB_ALLOC_PTR_ARRAY(object_ptr->ep_cr_dc_sign_level_coeff_neighbor_array_update, total_tile_cnt);
 #endif
     EB_ALLOC_PTR_ARRAY(object_ptr->ep_partition_context_neighbor_array, total_tile_cnt);
-
     //Entropy
     EB_ALLOC_PTR_ARRAY(object_ptr->mode_type_neighbor_array, total_tile_cnt);
     EB_ALLOC_PTR_ARRAY(object_ptr->partition_context_neighbor_array, total_tile_cnt);
@@ -1109,7 +1121,6 @@ EbErrorType picture_control_set_ctor(PictureControlSet *object_ptr, EbPtr object
                 PU_NEIGHBOR_ARRAY_GRANULARITY,
                 NEIGHBOR_ARRAY_UNIT_TOP_AND_LEFT_ONLY_MASK,
             },
-
             // Entropy Coding Neighbor Arrays
             {
                 &object_ptr->mode_type_neighbor_array[tile_idx],
