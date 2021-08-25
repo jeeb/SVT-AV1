@@ -22,6 +22,9 @@
 #include "EbCommonUtils.h"
 //#include "EbLog.h"
 
+#if FTR_MEM_OPT
+ void get_recon_pic(PictureControlSet *pcs_ptr, EbPictureBufferDesc **recon_ptr, EbBool is_highbd);
+#endif
 void svt_av1_loop_filter_init(PictureControlSet *pcs_ptr) {
     //assert(MB_MODE_COUNT == n_elements(mode_lf_lut));
     LoopFilterInfoN *  lfi = &pcs_ptr->parent_pcs_ptr->lf_info;
@@ -952,6 +955,12 @@ static int64_t try_filter_frame(
     EbBool is_16bit = (EbBool)(pcs_ptr->parent_pcs_ptr->scs_ptr->static_config.encoder_bit_depth >
                                EB_8BIT);
     EbPictureBufferDesc *recon_buffer;
+
+#if FTR_MEM_OPT
+
+
+    get_recon_pic(pcs_ptr, &recon_buffer, is_16bit);
+#else
     if (pcs_ptr->parent_pcs_ptr->is_used_as_reference_flag == EB_TRUE) {
         //get the 16bit form of the input SB
         if (pcs_ptr->parent_pcs_ptr->scs_ptr->static_config.is_16bit_pipeline || is_16bit) {
@@ -969,7 +978,7 @@ static int64_t try_filter_frame(
             ? pcs_ptr->parent_pcs_ptr->enc_dec_ptr->recon_picture16bit_ptr
             : pcs_ptr->parent_pcs_ptr->enc_dec_ptr->recon_picture_ptr;
     }
-
+#endif
     // set base filters for use of get_filter_level when in DELTA_Q_LF mode
     switch (plane) {
     case 0:
@@ -1021,6 +1030,12 @@ static int32_t search_filter_level(
                                EB_8BIT);
     EbPictureBufferDesc *recon_buffer;
 
+
+#if FTR_MEM_OPT
+
+
+    get_recon_pic(pcs_ptr, &recon_buffer, is_16bit);
+#else
     if (pcs_ptr->parent_pcs_ptr->is_used_as_reference_flag == EB_TRUE) {
         //get the 16bit form of the input SB
         if (pcs_ptr->parent_pcs_ptr->scs_ptr->static_config.is_16bit_pipeline || is_16bit)
@@ -1037,6 +1052,7 @@ static int32_t search_filter_level(
             ? pcs_ptr->parent_pcs_ptr->enc_dec_ptr->recon_picture16bit_ptr
             : pcs_ptr->parent_pcs_ptr->enc_dec_ptr->recon_picture_ptr;
     }
+#endif
     // Sum squared error at each filter level
     int64_t ss_err[MAX_LOOP_FILTER + 1];
 

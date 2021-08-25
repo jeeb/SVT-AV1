@@ -20,7 +20,9 @@
 #include "EbSequenceControlSet.h"
 #include "EbPictureControlSet.h"
 #include "aom_dsp_rtcd.h"
-
+#if FTR_MEM_OPT
+ void get_recon_pic(PictureControlSet *pcs_ptr, EbPictureBufferDesc **recon_ptr, EbBool is_highbd);
+#endif
 void svt_av1_loop_restoration_save_boundary_lines(const Yv12BufferConfig *frame, Av1Common *cm,
                                                   int32_t after_cdef);
 
@@ -149,6 +151,11 @@ void *dlf_kernel(void *input_ptr) {
 #endif
             EbPictureBufferDesc *recon_buffer;
 
+#if FTR_MEM_OPT
+
+
+    get_recon_pic(pcs_ptr, &recon_buffer, is_16bit);
+#else
             if (pcs_ptr->parent_pcs_ptr->is_used_as_reference_flag == EB_TRUE)
                 recon_buffer = (scs_ptr->static_config.is_16bit_pipeline || is_16bit)
                     ? ((EbReferenceObject *)
@@ -161,7 +168,7 @@ void *dlf_kernel(void *input_ptr) {
                 recon_buffer = scs_ptr->static_config.is_16bit_pipeline || is_16bit
                     ? pcs_ptr->parent_pcs_ptr->enc_dec_ptr->recon_picture16bit_ptr
                     : pcs_ptr->parent_pcs_ptr->enc_dec_ptr->recon_picture_ptr;
-
+#endif
             svt_av1_loop_filter_init(pcs_ptr);
 #if !CLN_DLF_SIGNALS
             if (pcs_ptr->parent_pcs_ptr->loop_filter_mode == 2) {
@@ -190,6 +197,11 @@ void *dlf_kernel(void *input_ptr) {
         {
             Av1Common *          cm = pcs_ptr->parent_pcs_ptr->av1_cm;
             EbPictureBufferDesc *recon_picture_ptr;
+#if FTR_MEM_OPT
+
+
+    get_recon_pic(pcs_ptr, &recon_picture_ptr, is_16bit);
+#else
             if (is_16bit) {
                 if (pcs_ptr->parent_pcs_ptr->is_used_as_reference_flag == EB_TRUE)
                     recon_picture_ptr = ((EbReferenceObject *)pcs_ptr->parent_pcs_ptr
@@ -214,6 +226,7 @@ void *dlf_kernel(void *input_ptr) {
                     recon_picture_ptr = pcs_ptr->parent_pcs_ptr->enc_dec_ptr->recon_picture16bit_ptr;
                 }
             }
+#endif
             link_eb_to_aom_buffer_desc(recon_picture_ptr,
                                        cm->frame_to_show,
                                        scs_ptr->max_input_pad_right,

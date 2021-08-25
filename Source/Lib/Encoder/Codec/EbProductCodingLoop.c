@@ -44,6 +44,11 @@
 void check_mv_validity(int16_t x_mv, int16_t y_mv, uint8_t need_shift);
 #endif
 #define DIVIDE_AND_ROUND(x, y) (((x) + ((y) >> 1)) / (y))
+#if FTR_MEM_OPT
+  void pack_block(uint8_t *in8_bit_buffer, uint32_t in8_stride, uint8_t *inn_bit_buffer,
+    uint32_t inn_stride, uint16_t *out16_bit_buffer, uint32_t out_stride,
+    uint32_t width, uint32_t height) ;
+#endif
 void svt_init_mv_cost_params(MV_COST_PARAMS *mv_cost_params, ModeDecisionContext *context_ptr,
                              const MV *ref_mv, uint8_t base_q_idx, uint32_t rdmult,
                              uint8_t hbd_mode_decision);
@@ -72,8 +77,17 @@ void precompute_intra_pred_for_inter_intra(PictureControlSet *  pcs_ptr,
 
 int svt_av1_allow_palette(int allow_palette, BlockSize sb_type);
 
+#if FTR_MEM_OPT
+ void get_recon_pic(PictureControlSet *pcs_ptr, EbPictureBufferDesc **recon_ptr, EbBool is_highbd);
+#endif
 #if  OPT_NA_INTRA
 extern IntraSize intra_unit[];
+#endif
+#if FTR_MEM_OPT
+EbPictureBufferDesc * get_ref_pic_buffer(PictureControlSet *pcs_ptr,
+                                         uint8_t is_highbd,
+                                         uint8_t list_idx,
+                                         uint8_t ref_idx);
 #endif
 /*******************************************
 * set Penalize Skip Flag
@@ -1122,11 +1136,15 @@ void av1_perform_inverse_transform_recon(ModeDecisionContext *        context_pt
 
             if (context_ptr->pred_depth_only && context_ptr->md_disallow_nsq) {
 #if FTR_10BIT_MDS3_REG_PD1
+#if FTR_MEM_OPT
+                get_recon_pic(pcs, &recon_buffer, context_ptr->hbd_mode_decision);
+#else
                 if (pcs->parent_pcs_ptr->is_used_as_reference_flag)
                     recon_buffer = context_ptr->hbd_mode_decision ? ((EbReferenceObject*)pcs->parent_pcs_ptr->reference_picture_wrapper_ptr->object_ptr)->reference_picture16bit :
                     ((EbReferenceObject*)pcs->parent_pcs_ptr->reference_picture_wrapper_ptr->object_ptr)->reference_picture;
                 else // non ref pictures
                     recon_buffer = context_ptr->hbd_mode_decision ? pcs->parent_pcs_ptr->enc_dec_ptr->recon_picture16bit_ptr : pcs->parent_pcs_ptr->enc_dec_ptr->recon_picture_ptr;
+#endif
 #else
                 // Assume non-16bit
                 if (pcs->parent_pcs_ptr->is_used_as_reference_flag)
@@ -3003,8 +3021,16 @@ void md_nsq_motion_search(PictureControlSet *pcs_ptr, ModeDecisionContext *conte
                      : context_ptr->hbd_mode_decision;
 #endif
     EbReferenceObject *  ref_obj = pcs_ptr->ref_pic_ptr_array[list_idx][ref_idx]->object_ptr;
-    EbPictureBufferDesc *ref_pic = hbd_mode_decision ? ref_obj->reference_picture16bit
-                                                     : ref_obj->reference_picture;
+    EbPictureBufferDesc *ref_pic =
+#if FTR_MEM_OPT
+     get_ref_pic_buffer(pcs_ptr, hbd_mode_decision, list_idx, ref_idx);
+#else
+#if !FTR_MEM_OPT
+        hbd_mode_decision ? ref_obj->reference_picture16bit
+                                                     :
+#endif
+        ref_obj->reference_picture;
+#endif
     for (int16_t mvc_index = 0; mvc_index < mvc_count; mvc_index++) {
         // Round-up the search center to the closest integer
         mvc_x_array[mvc_index] = (mvc_x_array[mvc_index] + 4) & ~0x07;
@@ -3157,9 +3183,16 @@ void md_sq_motion_search(PictureControlSet *pcs, ModeDecisionContext *ctx,
                                                                                       : ctx->hbd_mode_decision;
 #endif
     EbReferenceObject *  ref_obj           = pcs->ref_pic_ptr_array[list_idx][ref_idx]->object_ptr;
-    EbPictureBufferDesc *ref_pic           = hbd_mode_decision ? ref_obj->reference_picture16bit
-                                                               : ref_obj->reference_picture;
-
+    EbPictureBufferDesc *ref_pic           =
+#if FTR_MEM_OPT
+     get_ref_pic_buffer(pcs, hbd_mode_decision, list_idx, ref_idx);
+#else
+#if !FTR_MEM_OPT
+        hbd_mode_decision ? ref_obj->reference_picture16bit
+                                                               :
+#endif
+        ref_obj->reference_picture;
+#endif
     MdSqMotionSearchCtrls *md_sq_me_ctrls = &ctx->md_sq_me_ctrls;
     uint16_t               dist           = ABS(
         (int16_t)(pcs->picture_number - pcs->parent_pcs_ptr->ref_pic_poc_array[list_idx][ref_idx]));
@@ -3454,8 +3487,12 @@ int md_subpel_search(PictureControlSet *pcs_ptr, ModeDecisionContext *context_pt
     MSBuffers *ms_buffers = &ms_params->var_params.ms_buffers;
 
     // Ref buffer
+#if FTR_MEM_OPT
+    EbPictureBufferDesc *ref_pic = get_ref_pic_buffer(pcs_ptr, 0 /* 10BIT not supported*/, list_idx, ref_idx);
+#else
     EbReferenceObject *  ref_obj = pcs_ptr->ref_pic_ptr_array[list_idx][ref_idx]->object_ptr;
     EbPictureBufferDesc *ref_pic = ref_obj->reference_picture; // 10BIT not supported
+#endif
     int32_t              ref_origin_index = ref_pic->origin_x + context_ptr->blk_origin_x +
         (context_ptr->blk_origin_y + ref_pic->origin_y) * ref_pic->stride_y;
 
@@ -3589,8 +3626,11 @@ void read_refine_me_mvs_light_pd1(PictureControlSet *pcs_ptr, ModeDecisionContex
             const MeSbResults *me_results = pcs_ptr->parent_pcs_ptr->pa_me_data->me_results[context_ptr->me_sb_addr];
 
             if (is_me_data_present(context_ptr, me_results, list_idx, ref_idx)) {
+#if FTR_MEM_OPT
+                EbPictureBufferDesc *ref_pic = get_ref_pic_buffer(pcs_ptr, 0 , list_idx, ref_idx);
+#else
                 EbPictureBufferDesc *ref_pic = ((EbReferenceObject*)pcs_ptr->ref_pic_ptr_array[list_idx][ref_idx]->object_ptr)->reference_picture;
-
+#endif
                 int16_t me_mv_x;
                 int16_t me_mv_y;
                 if (list_idx == 0) {
@@ -3686,8 +3726,16 @@ void read_refine_me_mvs(PictureControlSet *pcs_ptr, ModeDecisionContext *context
             uint8_t            list_idx = get_list_idx(rf[0]);
             uint8_t            ref_idx  = get_ref_frame_idx(rf[0]);
             EbReferenceObject *ref_obj  = pcs_ptr->ref_pic_ptr_array[list_idx][ref_idx]->object_ptr;
-            EbPictureBufferDesc *ref_pic = hbd_mode_decision ? ref_obj->reference_picture16bit
-                                                             : ref_obj->reference_picture;
+            EbPictureBufferDesc *ref_pic =
+#if FTR_MEM_OPT
+     get_ref_pic_buffer(pcs_ptr, hbd_mode_decision, list_idx, ref_idx);
+#else
+#if !FTR_MEM_OPT
+                hbd_mode_decision ? ref_obj->reference_picture16bit
+                                                             :
+#endif
+                ref_obj->reference_picture;
+#endif
             // Get the ME MV
             const MeSbResults *me_results =
                 pcs_ptr->parent_pcs_ptr->pa_me_data->me_results[context_ptr->me_sb_addr];
@@ -3905,8 +3953,16 @@ void perform_md_reference_pruning(PictureControlSet *pcs_ptr, ModeDecisionContex
                 // MVP Distortion
                 EbReferenceObject *ref_obj =
                     pcs_ptr->ref_pic_ptr_array[list_idx][ref_idx]->object_ptr;
-                EbPictureBufferDesc *ref_pic = hbd_mode_decision ? ref_obj->reference_picture16bit
-                                                                 : ref_obj->reference_picture;
+                EbPictureBufferDesc *ref_pic =
+#if FTR_MEM_OPT
+               get_ref_pic_buffer(pcs_ptr, hbd_mode_decision,  list_idx, ref_idx);
+#else
+#if !FTR_MEM_OPT
+                    hbd_mode_decision ? ref_obj->reference_picture16bit
+                                                                 :
+ #endif
+ #endif
+                    ref_obj->reference_picture;
                 clip_mv_on_pic_boundary(context_ptr->blk_origin_x,
                                         context_ptr->blk_origin_y,
                                         context_ptr->blk_geom->bwidth,
@@ -3923,6 +3979,44 @@ void perform_md_reference_pruning(PictureControlSet *pcs_ptr, ModeDecisionContex
                      ref_pic->origin_y) *
                         ref_pic->stride_y;
                 assert((context_ptr->blk_geom->bwidth >> 3) < 17);
+#if FTR_MEM_OPT
+                uint32_t mvp_distortion ;
+                if (hbd_mode_decision) {
+
+                    uint16_t * src_10b ;
+                    DECLARE_ALIGNED(16, uint16_t, packed_buf[PACKED_BUFFER_SIZE]);
+                    // pack the reference into temp 16bit buffer
+                    uint8_t offset = INTERPOLATION_OFFSET;
+                    int32_t stride ;
+
+                    pack_block(
+                        ref_pic->buffer_y + ref_origin_index - offset - (offset*ref_pic->stride_y),
+                        ref_pic->stride_y,
+                        ref_pic->buffer_bit_inc_y + ref_origin_index - offset - (offset*ref_pic->stride_bit_inc_y),
+                        ref_pic->stride_bit_inc_y,
+                        (uint16_t *)packed_buf,
+                        MAX_SB_SIZE,
+                        context_ptr->blk_geom->bwidth + (offset << 1),
+                        context_ptr->blk_geom->bheight + (offset << 1));
+
+                    src_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
+                    stride = MAX_SB_SIZE;
+
+                   mvp_distortion =  sad_16b_kernel(((uint16_t *)input_picture_ptr->buffer_y) + input_origin_index,
+                        input_picture_ptr->stride_y,
+                        src_10b,
+                        stride,
+                        context_ptr->blk_geom->bheight,
+                        context_ptr->blk_geom->bwidth);
+                }else
+                   mvp_distortion =   svt_nxm_sad_kernel_sub_sampled(
+                          input_picture_ptr->buffer_y + input_origin_index,
+                          input_picture_ptr->stride_y,
+                          ref_pic->buffer_y + ref_origin_index,
+                          ref_pic->stride_y,
+                          context_ptr->blk_geom->bheight,
+                          context_ptr->blk_geom->bwidth);
+#else
                 uint32_t mvp_distortion = hbd_mode_decision
                     ? sad_16b_kernel(((uint16_t *)input_picture_ptr->buffer_y) + input_origin_index,
                                      input_picture_ptr->stride_y,
@@ -3937,7 +4031,7 @@ void perform_md_reference_pruning(PictureControlSet *pcs_ptr, ModeDecisionContex
                           ref_pic->stride_y,
                           context_ptr->blk_geom->bheight,
                           context_ptr->blk_geom->bwidth);
-
+#endif
                 if (mvp_distortion < best_mvp_distortion)
                     best_mvp_distortion = mvp_distortion;
             }
@@ -3965,8 +4059,16 @@ void perform_md_reference_pruning(PictureControlSet *pcs_ptr, ModeDecisionContex
                 me_mv_y = (me_mv_y + 4) & ~0x07;
                 EbReferenceObject *ref_obj =
                     pcs_ptr->ref_pic_ptr_array[list_idx][ref_idx]->object_ptr;
-                EbPictureBufferDesc *ref_pic = hbd_mode_decision ? ref_obj->reference_picture16bit
-                                                                 : ref_obj->reference_picture;
+                EbPictureBufferDesc *ref_pic =
+#if FTR_MEM_OPT
+               get_ref_pic_buffer(pcs_ptr, hbd_mode_decision, list_idx, ref_idx);
+#else
+#if !FTR_MEM_OPT
+                    hbd_mode_decision ? ref_obj->reference_picture16bit
+                                                                 :
+#endif
+                    ref_obj->reference_picture;
+#endif
                 clip_mv_on_pic_boundary(context_ptr->blk_origin_x,
                                         context_ptr->blk_origin_y,
                                         context_ptr->blk_geom->bwidth,
@@ -3980,6 +4082,43 @@ void perform_md_reference_pruning(PictureControlSet *pcs_ptr, ModeDecisionContex
                     (context_ptr->blk_origin_y + (me_mv_y >> 3) + ref_pic->origin_y) *
                         ref_pic->stride_y;
                 assert((context_ptr->blk_geom->bwidth >> 3) < 17);
+#if FTR_MEM_OPT
+                if (hbd_mode_decision) {
+
+                    uint16_t * src_10b ;
+                    DECLARE_ALIGNED(16, uint16_t, packed_buf[PACKED_BUFFER_SIZE]);
+                    // pack the reference into temp 16bit buffer
+                    uint8_t offset = INTERPOLATION_OFFSET;
+                    int32_t stride ;
+
+                    pack_block(
+                        ref_pic->buffer_y + ref_origin_index - offset - (offset*ref_pic->stride_y),
+                        ref_pic->stride_y,
+                        ref_pic->buffer_bit_inc_y + ref_origin_index - offset - (offset*ref_pic->stride_bit_inc_y),
+                        ref_pic->stride_bit_inc_y,
+                        (uint16_t *)packed_buf,
+                        MAX_SB_SIZE,
+                        context_ptr->blk_geom->bwidth + (offset << 1),
+                        context_ptr->blk_geom->bheight + (offset << 1));
+
+                    src_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
+                    stride = MAX_SB_SIZE;
+
+                   pa_me_distortion =  sad_16b_kernel(((uint16_t *)input_picture_ptr->buffer_y) + input_origin_index,
+                                     input_picture_ptr->stride_y,
+                                     src_10b,
+                                     stride,
+                                     context_ptr->blk_geom->bheight,
+                                     context_ptr->blk_geom->bwidth);
+                }else
+                   pa_me_distortion =   svt_nxm_sad_kernel_sub_sampled(
+                          input_picture_ptr->buffer_y + input_origin_index,
+                          input_picture_ptr->stride_y,
+                          ref_pic->buffer_y + ref_origin_index,
+                          ref_pic->stride_y,
+                          context_ptr->blk_geom->bheight,
+                          context_ptr->blk_geom->bwidth);
+#else
                 pa_me_distortion = hbd_mode_decision
                     ? sad_16b_kernel(((uint16_t *)input_picture_ptr->buffer_y) + input_origin_index,
                                      input_picture_ptr->stride_y,
@@ -3994,6 +4133,7 @@ void perform_md_reference_pruning(PictureControlSet *pcs_ptr, ModeDecisionContex
                           ref_pic->stride_y,
                           context_ptr->blk_geom->bheight,
                           context_ptr->blk_geom->bwidth);
+#endif
             }
 
             // early_inter_distortion_array
@@ -4192,9 +4332,17 @@ void   pme_search(PictureControlSet *pcs, ModeDecisionContext *ctx,
             uint8_t ref_idx  = get_ref_frame_idx(rf[0]);
             ctx->valid_pme_mv[list_idx][ref_idx] = 0;
             EbReferenceObject *  ref_obj = pcs->ref_pic_ptr_array[list_idx][ref_idx]->object_ptr;
+#if FTR_MEM_OPT
+            EbPictureBufferDesc *ref_pic = get_ref_pic_buffer(pcs, hbd_mode_decision, list_idx, ref_idx);
+#else
+#if FTR_MEM_OPT
+            EbPictureBufferDesc *ref_pic =
+#else
             EbPictureBufferDesc *ref_pic = hbd_mode_decision ? ref_obj->reference_picture16bit
-                                                             : ref_obj->reference_picture;
-
+                                                             :
+#endif
+                ref_obj->reference_picture;
+#endif
             // -------
             // Use scaled references if resolution of the reference is different from that of the input
             // -------
@@ -8596,8 +8744,12 @@ COMPONENT_TYPE chroma_complexity_check(PictureControlSet *pcs_ptr, ModeDecisionC
 
         if (candidate_ptr->prediction_direction[0] == UNI_PRED_LIST_0 || candidate_ptr->prediction_direction[0] == BI_PRED) {
 #if FTR_10BIT_MDS3_LPD1
+#if FTR_MEM_OPT
+            ref_pic = get_ref_pic_buffer(pcs_ptr,  context_ptr->hbd_mode_decision , 0, ref_idx_first);
+#else
             ref_pic = context_ptr->hbd_mode_decision ? ((EbReferenceObject *)pcs_ptr->ref_pic_ptr_array[0][ref_idx_first]->object_ptr)->reference_picture16bit
                 : ((EbReferenceObject *)pcs_ptr->ref_pic_ptr_array[0][ref_idx_first]->object_ptr)->reference_picture;
+#endif
 #else
             ref_pic = ((EbReferenceObject *)pcs_ptr->ref_pic_ptr_array[0][ref_idx_first]->object_ptr)->reference_picture;
 #endif
@@ -8606,8 +8758,12 @@ COMPONENT_TYPE chroma_complexity_check(PictureControlSet *pcs_ptr, ModeDecisionC
         }
         else {
 #if FTR_10BIT_MDS3_LPD1
+#if FTR_MEM_OPT
+            ref_pic = get_ref_pic_buffer(pcs_ptr,  context_ptr->hbd_mode_decision , 1, ref_idx_first);
+#else
             ref_pic = context_ptr->hbd_mode_decision ? ((EbReferenceObject *)pcs_ptr->ref_pic_ptr_array[1][ref_idx_first]->object_ptr)->reference_picture16bit
                 : ((EbReferenceObject *)pcs_ptr->ref_pic_ptr_array[1][ref_idx_first]->object_ptr)->reference_picture;
+#endif
 #else
             ref_pic = ((EbReferenceObject *)pcs_ptr->ref_pic_ptr_array[1][ref_idx_first]->object_ptr)->reference_picture;
 #endif
@@ -8625,28 +8781,120 @@ COMPONENT_TYPE chroma_complexity_check(PictureControlSet *pcs_ptr, ModeDecisionC
         uint32_t y_dist, cb_dist, cr_dist;
 
         if (context_ptr->hbd_mode_decision) {
+
+#if FTR_MEM_OPT
+        uint16_t * src_10b ;
+        DECLARE_ALIGNED(16, uint16_t, packed_buf[PACKED_BUFFER_SIZE]);
+        // pack the reference into temp 16bit buffer
+        uint8_t offset = INTERPOLATION_OFFSET;
+        int32_t stride ;
+        if (pcs_ptr->parent_pcs_ptr->packed_reference_hbd) {
+            src_10b =  ((uint16_t*)ref_pic->buffer_y) + src_y_offset;
+            stride = ref_pic->stride_y << shift;
+
+        }else{
+            pack_block(
+                ref_pic->buffer_y + src_y_offset - offset - (offset*(ref_pic->stride_y << shift)),
+                ref_pic->stride_y << shift,
+                ref_pic->buffer_bit_inc_y + src_y_offset - offset - (offset*(ref_pic->stride_bit_inc_y << shift)),
+                ref_pic->stride_bit_inc_y << shift,
+                (uint16_t *)packed_buf,
+                MAX_SB_SIZE,
+                (context_ptr->blk_geom->bheight_uv >> shift) + (offset << 1),
+                context_ptr->blk_geom->bwidth_uv + (offset << 1));
+
+            src_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
+            stride = MAX_SB_SIZE;
+        }
+#endif
             // Y dist only computed over UV size so SADs are comparable
             y_dist = sad_16b_kernel(
                 ((uint16_t*)input_picture_ptr->buffer_y) + loc->input_origin_index,
                 input_picture_ptr->stride_y << shift,
+#if FTR_MEM_OPT
+                src_10b,
+                stride,
+#else
                 ((uint16_t*)ref_pic->buffer_y) + src_y_offset,
                 ref_pic->stride_y << shift,
+#endif
                 context_ptr->blk_geom->bheight_uv >> shift,
                 context_ptr->blk_geom->bwidth_uv);
 
+#if FTR_MEM_OPT
+     //   uint16_t * src_10b ;
+       // DECLARE_ALIGNED(16, uint16_t, packed_buf[PACKED_BUFFER_SIZE]);
+        // pack the reference into temp 16bit buffer
+        //uint8_t offset = INTERPOLATION_OFFSET;
+        //int32_t stride ;
+        if (pcs_ptr->parent_pcs_ptr->packed_reference_hbd) {
+            src_10b =  ((uint16_t*)ref_pic->buffer_cb) + src_cb_offset;
+            stride = ref_pic->stride_cb << shift;
+
+        }else{
+            pack_block(
+                ref_pic->buffer_cb + src_cb_offset - offset - (offset*(ref_pic->stride_cb << shift)),
+                ref_pic->stride_cb << shift,
+                ref_pic->buffer_bit_inc_cb + src_cb_offset - offset - (offset*(ref_pic->stride_bit_inc_cb << shift)),
+                ref_pic->stride_bit_inc_cb << shift,
+                (uint16_t *)packed_buf,
+                MAX_SB_SIZE,
+                (context_ptr->blk_geom->bheight_uv >> shift) + (offset << 1),
+                context_ptr->blk_geom->bwidth_uv + (offset << 1));
+
+            src_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
+            stride = MAX_SB_SIZE;
+        }
+#endif
             cb_dist = sad_16b_kernel(
                 ((uint16_t*)input_picture_ptr->buffer_cb) + loc->input_cb_origin_in_index,
                 input_picture_ptr->stride_cb << shift,
+#if FTR_MEM_OPT
+                src_10b,
+                stride,
+#else
                 ((uint16_t*)ref_pic->buffer_cb) + src_cb_offset,
                 ref_pic->stride_cb << shift,
+#endif
                 context_ptr->blk_geom->bheight_uv >> shift,
                 context_ptr->blk_geom->bwidth_uv);
 
+
+#if FTR_MEM_OPT
+      //  uint16_t * src_10b ;
+      //  DECLARE_ALIGNED(16, uint16_t, packed_buf[PACKED_BUFFER_SIZE]);
+        // pack the reference into temp 16bit buffer
+       // uint8_t offset = INTERPOLATION_OFFSET;
+       // int32_t stride ;
+        if (pcs_ptr->parent_pcs_ptr->packed_reference_hbd) {
+            src_10b =  ((uint16_t*)ref_pic->buffer_cr) + src_cr_offset;
+            stride = ref_pic->stride_cr << shift;
+
+        }else{
+            pack_block(
+                ref_pic->buffer_cr + src_cr_offset - offset - (offset*(ref_pic->stride_cr << shift)),
+                ref_pic->stride_cr << shift,
+                ref_pic->buffer_bit_inc_cr + src_cr_offset - offset - (offset*(ref_pic->stride_bit_inc_cr << shift)),
+                ref_pic->stride_bit_inc_cr << shift,
+                (uint16_t *)packed_buf,
+                MAX_SB_SIZE,
+                (context_ptr->blk_geom->bheight_uv >> shift) + (offset << 1),
+                context_ptr->blk_geom->bwidth_uv + (offset << 1));
+
+            src_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
+            stride = MAX_SB_SIZE;
+        }
+#endif
             cr_dist = sad_16b_kernel(
                 ((uint16_t*)input_picture_ptr->buffer_cr) + loc->input_cb_origin_in_index,
                 input_picture_ptr->stride_cr << shift,
+#if FTR_MEM_OPT
+                src_10b,
+                stride,
+#else
                 ((uint16_t*)ref_pic->buffer_cr) + src_cr_offset,
                 ref_pic->stride_cr << shift,
+#endif
                 context_ptr->blk_geom->bheight_uv >> shift,
                 context_ptr->blk_geom->bwidth_uv);
         }
@@ -9534,9 +9782,16 @@ static void md_stage_2(PictureControlSet *pcs_ptr, SuperBlock *sb_ptr, BlkStruct
 
 #if OPT_TXS_SEARCH
 #if LIGHT_PD1
+#if OPT_TXS_WM
+        context_ptr->md_staging_tx_size_mode = (context_ptr->txs_ctrls.enabled && context_ptr->txs_ctrls.inter_class_max_depth && candidate_ptr->type == INTER_MODE &&
+            (context_ptr->blk_geom->sq_size >= context_ptr->txs_ctrls.min_sq_size))
+            ? 1
+            : 0;
+#else
         context_ptr->md_staging_tx_size_mode = (context_ptr->txs_ctrls.enabled && context_ptr->txs_ctrls.inter_class_max_depth && candidate_ptr->type == INTER_MODE)
             ? 1
             : 0;
+#endif
 #else
         context_ptr->md_staging_tx_size_mode = (context_ptr->txs_ctrls.enabled && context_ptr->txs_ctrls.inter_class_max_depth && (candidate_ptr->cand_class == CAND_CLASS_1 || candidate_ptr->cand_class == CAND_CLASS_2))
             ? 1
@@ -9900,7 +10155,11 @@ static void md_stage_3(PictureControlSet *pcs_ptr, SuperBlock *sb_ptr, BlkStruct
         context_ptr->md_staging_skip_chroma_pred = EB_FALSE;
 #endif
 #if OPT_TXS_SEARCH
+#if OPT_TXS_WM
+        context_ptr->md_staging_tx_size_mode = context_ptr->txs_ctrls.enabled && (context_ptr->blk_geom->sq_size >= context_ptr->txs_ctrls.min_sq_size);
+#else
         context_ptr->md_staging_tx_size_mode = context_ptr->txs_ctrls.enabled;
+#endif
 #else
         if (context_ptr->md_staging_tx_size_level)
             context_ptr->md_staging_tx_size_mode = 1;
@@ -11286,9 +11545,13 @@ void copy_recon_md(PictureControlSet *pcs, ModeDecisionContext *ctx,
             // copy 10bit
 #if OPT_BYPASS_ED_10BIT
             if (ctx->pred_depth_only && ctx->md_disallow_nsq) {
+#if FTR_MEM_OPT
+                get_recon_pic(pcs, &recon_ptr, 1);
+#else
                 recon_ptr = (pcs->parent_pcs_ptr->is_used_as_reference_flag) ?
                     ((EbReferenceObject*)pcs->parent_pcs_ptr->reference_picture_wrapper_ptr->object_ptr)->reference_picture16bit :
                     pcs->parent_pcs_ptr->enc_dec_ptr->recon_picture16bit_ptr;
+#endif
                 rec_luma_offset = (recon_ptr->origin_y + ctx->blk_origin_y) * recon_ptr->stride_y + (recon_ptr->origin_x + ctx->blk_origin_x);
             }
             else {
@@ -11313,7 +11576,9 @@ void copy_recon_md(PictureControlSet *pcs, ModeDecisionContext *ctx,
 #if OPT_BYPASS_ED_10BIT
             // If REF, saved 8bit recon in pcs, else saved 8bit recon to candidate_buffer
             if (ctx->pred_depth_only && ctx->md_disallow_nsq && pcs->parent_pcs_ptr->is_used_as_reference_flag) {
-                recon_ptr = ((EbReferenceObject*)pcs->parent_pcs_ptr->reference_picture_wrapper_ptr->object_ptr)->reference_picture;
+
+               //   get_recon_pic(pcs, &recon_ptr, 1);
+               recon_ptr = ((EbReferenceObject*)pcs->parent_pcs_ptr->reference_picture_wrapper_ptr->object_ptr)->reference_picture;
                 rec_luma_offset = (recon_ptr->origin_y + ctx->blk_origin_y) * recon_ptr->stride_y + (recon_ptr->origin_x + ctx->blk_origin_x);
             }
             else {
@@ -11342,6 +11607,9 @@ void copy_recon_md(PictureControlSet *pcs, ModeDecisionContext *ctx,
 
                 // If using only pred depth and no NSQ, can copy directly to final buffer b/c no d1 or d2 decision
                 if (ctx->pred_depth_only && ctx->md_disallow_nsq) {
+#if FTR_MEM_OPT
+                    get_recon_pic(pcs, &recon_ptr, ctx->hbd_mode_decision);
+#else
                     if (ctx->hbd_mode_decision)
                         recon_ptr = (pcs->parent_pcs_ptr->is_used_as_reference_flag) ?
                         ((EbReferenceObject*)pcs->parent_pcs_ptr->reference_picture_wrapper_ptr->object_ptr)->reference_picture16bit :
@@ -11350,7 +11618,7 @@ void copy_recon_md(PictureControlSet *pcs, ModeDecisionContext *ctx,
                         recon_ptr = (pcs->parent_pcs_ptr->is_used_as_reference_flag) ?
                         ((EbReferenceObject*)pcs->parent_pcs_ptr->reference_picture_wrapper_ptr->object_ptr)->reference_picture
                         : pcs->parent_pcs_ptr->enc_dec_ptr->recon_picture_ptr;
-
+#endif
                     rec_luma_offset = (recon_ptr->origin_y + ctx->blk_origin_y) * recon_ptr->stride_y + (recon_ptr->origin_x + ctx->blk_origin_x);
                 }
                 else {
@@ -11435,10 +11703,13 @@ void copy_recon_md(PictureControlSet *pcs, ModeDecisionContext *ctx,
         // copy 16bit recon
 #if OPT_BYPASS_ED_10BIT
         if (ctx->pred_depth_only && ctx->md_disallow_nsq) {
+#if FTR_MEM_OPT
+            get_recon_pic(pcs, &recon_ptr, 1);
+#else
             recon_ptr = (pcs->parent_pcs_ptr->is_used_as_reference_flag) ?
                 ((EbReferenceObject*)pcs->parent_pcs_ptr->reference_picture_wrapper_ptr->object_ptr)->reference_picture16bit :
                 pcs->parent_pcs_ptr->enc_dec_ptr->recon_picture16bit_ptr;
-
+#endif
             rec_luma_offset = (recon_ptr->origin_y + ctx->blk_origin_y) * recon_ptr->stride_y + (recon_ptr->origin_x + ctx->blk_origin_x);
 
             uint32_t round_origin_x = (ctx->blk_origin_x >> 3) << 3; // for Chroma blocks with size of 4
@@ -11495,6 +11766,7 @@ void copy_recon_md(PictureControlSet *pcs, ModeDecisionContext *ctx,
 #if OPT_BYPASS_ED_10BIT
         // If REF, saved 8bit recon in pcs, else saved 8bit recon to candidate_buffer
         if (ctx->pred_depth_only && ctx->md_disallow_nsq && pcs->parent_pcs_ptr->is_used_as_reference_flag) {
+
             recon_ptr = ((EbReferenceObject*)pcs->parent_pcs_ptr->reference_picture_wrapper_ptr->object_ptr)->reference_picture;
 
             rec_luma_offset = (recon_ptr->origin_y + ctx->blk_origin_y) * recon_ptr->stride_y + (recon_ptr->origin_x + ctx->blk_origin_x);
@@ -11561,6 +11833,9 @@ void copy_recon_md(PictureControlSet *pcs, ModeDecisionContext *ctx,
 
             // If using only pred depth and no NSQ, can copy directly to final buffer b/c no d1 or d2 decision
             if (ctx->pred_depth_only && ctx->md_disallow_nsq) {
+#if FTR_MEM_OPT
+                get_recon_pic(pcs, &recon_ptr, ctx->hbd_mode_decision);
+#else
                 if (ctx->hbd_mode_decision)
                     recon_ptr = (pcs->parent_pcs_ptr->is_used_as_reference_flag) ?
                     ((EbReferenceObject*)pcs->parent_pcs_ptr->reference_picture_wrapper_ptr->object_ptr)->reference_picture16bit :
@@ -11569,7 +11844,7 @@ void copy_recon_md(PictureControlSet *pcs, ModeDecisionContext *ctx,
                     recon_ptr = (pcs->parent_pcs_ptr->is_used_as_reference_flag) ?
                     ((EbReferenceObject*)pcs->parent_pcs_ptr->reference_picture_wrapper_ptr->object_ptr)->reference_picture
                     : pcs->parent_pcs_ptr->enc_dec_ptr->recon_picture_ptr;
-
+#endif
                 rec_luma_offset = (recon_ptr->origin_y + ctx->blk_origin_y) * recon_ptr->stride_y + (recon_ptr->origin_x + ctx->blk_origin_x);
 
                 uint32_t round_origin_x = (ctx->blk_origin_x >> 3) << 3; // for Chroma blocks with size of 4
@@ -11852,10 +12127,13 @@ void copy_recon_light_pd1(PictureControlSet *pcs, ModeDecisionContext *ctx,
     // If bypassing EncDec for 10bit, need to save 8bit and 10bit recon
     if (ctx->encoder_bit_depth > EB_8BIT && ctx->bypass_encdec) {
 
+#if FTR_MEM_OPT
+        get_recon_pic(pcs, &recon_ptr, 1);
+#else
         recon_ptr = (pcs->parent_pcs_ptr->is_used_as_reference_flag) ?
             ((EbReferenceObject*)pcs->parent_pcs_ptr->reference_picture_wrapper_ptr->object_ptr)->reference_picture16bit :
             pcs->parent_pcs_ptr->enc_dec_ptr->recon_picture16bit_ptr;
-
+#endif
         // Y
         // Copy top and bottom rows
         uint16_t* dst_ptr_top_left_16bit = (uint16_t*)(ctx->luma_recon_neighbor_array16bit->top_array +
@@ -11947,13 +12225,17 @@ static void convert_recon_16bit_to_8bit_md(PictureControlSet *pcs, ModeDecisionC
     uint32_t rec_luma_offset_16bit, rec_cb_offset_16bit, rec_cr_offset_16bit;
 
     if (ctx->pred_depth_only && ctx->md_disallow_nsq) {
+#if FTR_MEM_OPT
+        get_recon_pic(pcs, &recon_buffer_16bit, 1);
+        get_recon_pic(pcs, &recon_buffer_8bit, 0);
+#else
         recon_buffer_16bit = pcs->parent_pcs_ptr->is_used_as_reference_flag
             ? ((EbReferenceObject *)pcs->parent_pcs_ptr->reference_picture_wrapper_ptr->object_ptr)->reference_picture16bit
             : pcs->parent_pcs_ptr->enc_dec_ptr->recon_picture16bit_ptr;
         recon_buffer_8bit = pcs->parent_pcs_ptr->is_used_as_reference_flag
             ? ((EbReferenceObject *)pcs->parent_pcs_ptr->reference_picture_wrapper_ptr->object_ptr)->reference_picture
             : candidate_buffer->recon_ptr;
-
+#endif
         // Set 16bit recon offsets
         uint32_t pred_buf_x_offest = ctx->blk_origin_x;
         uint32_t pred_buf_y_offest = ctx->blk_origin_y;
@@ -12023,7 +12305,7 @@ static void convert_recon_16bit_to_8bit_md(PictureControlSet *pcs, ModeDecisionC
     uint8_t* dst = recon_buffer_8bit->buffer_y + rec_luma_offset_8bit;
     int32_t dst_stride = recon_buffer_8bit->stride_y;
 
-    svt_convert_16bit_to_8bit(dst_16bit,
+    svt_convert_16bit_to_8bit_c(dst_16bit,
         dst_stride_16bit,
         dst,
         dst_stride,
