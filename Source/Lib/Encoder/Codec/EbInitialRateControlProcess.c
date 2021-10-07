@@ -603,7 +603,7 @@ void *initial_rate_control_kernel(void *input_ptr) {
 
             // Release Pa Ref pictures when not needed
             // Release Pa ref after when TPL is OFF
-#if FIX_LAD_MG_0_HANG
+#if FIX_LAD_MG_0_HANG && !FIX_I51
             // Release Pa Ref if mg_lad is 0 and P slice (not belonging to any TPL group)
             uint8_t release_pa_ref = 0;
             if (scs_ptr->static_config.enable_tpl_la == 0)
