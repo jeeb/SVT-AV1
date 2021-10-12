@@ -63,6 +63,10 @@ typedef struct RateControlIntervalParamContext {
     int64_t kf_group_bits;
     // Error score of frames still to be coded in kf group
     int64_t kf_group_error_left;
+
+#if FIX_HANG_IN_RATE_CONTROL_PARAM_QUEUE
+    int32_t processed_frame_number;
+#endif
 } RateControlIntervalParamContext;
 #endif
 
@@ -115,6 +119,9 @@ EbErrorType rate_control_context_ctor(EbThreadContext *  thread_context_ptr,
             ((interval_index + 1) * (uint32_t)(intra_period + 1)) - 1;
 #if FTR_1PAS_VBR
         context_ptr->rate_control_param_queue[interval_index]->end_of_seq_seen = 0;
+#endif
+#if FIX_HANG_IN_RATE_CONTROL_PARAM_QUEUE
+        context_ptr->rate_control_param_queue[interval_index]->processed_frame_number = 0;
 #endif
     }
 
@@ -4133,6 +4140,37 @@ void *rate_control_kernel(void *input_ptr) {
                                                 rate_control_tasks_ptr->pcs_wrapper_ptr->object_ptr;
             scs_ptr = (SequenceControlSet *)
                 parentpicture_control_set_ptr->scs_wrapper_ptr->object_ptr;
+
+#if FIX_HANG_IN_RATE_CONTROL_PARAM_QUEUE
+            if (scs_ptr->static_config.intra_period_length != -1 &&
+                scs_ptr->static_config.rate_control_mode != 0) {
+                uint32_t interval_index_temp = 0;
+                for (RateControlIntervalParamContext **rc_param_queue =
+                         context_ptr->rate_control_param_queue;
+                     interval_index_temp < PARALLEL_GOP_MAX_NUMBER &&
+                     (rc_param_queue[interval_index_temp]->first_poc >
+                          parentpicture_control_set_ptr->picture_number ||
+                      rc_param_queue[interval_index_temp]->last_poc <
+                          parentpicture_control_set_ptr->picture_number);
+                     ++interval_index_temp) {}
+                CHECK_REPORT_ERROR(interval_index_temp != PARALLEL_GOP_MAX_NUMBER,
+                                   scs_ptr->encode_context_ptr->app_callback_ptr,
+                                   EB_ENC_RC_ERROR2);
+                rate_control_param_ptr = context_ptr->rate_control_param_queue[interval_index_temp];
+                rate_control_param_ptr->processed_frame_number++;
+                // check if all the frames in the interval have arrived
+                if (scs_ptr->static_config.intra_period_length + 1 ==
+                    rate_control_param_ptr->processed_frame_number) {
+                    uint64_t shift_count = (uint64_t)(scs_ptr->static_config.intra_period_length +
+                                                      1) *
+                        PARALLEL_GOP_MAX_NUMBER;
+                    rate_control_param_ptr->first_poc += shift_count;
+                    rate_control_param_ptr->last_poc += shift_count;
+                    rate_control_param_ptr->processed_frame_number = 0;
+                }
+            }
+#endif
+
 #if RFCTR_RC_P2
             if (!use_output_stat(scs_ptr)) {
                 restore_gf_group_param(parentpicture_control_set_ptr);
