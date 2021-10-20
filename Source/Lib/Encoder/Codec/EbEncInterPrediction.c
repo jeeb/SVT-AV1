@@ -7999,11 +7999,17 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
         mv.row = mv_unit->mv[REF_LIST_0].y;
 #if FTR_MEM_OPT
         // get-ref
-        src_ptr = ref_pic_list0->buffer_y + ref_pic_list0->origin_x + pu_origin_x +
-            (ref_pic_list0->origin_y + pu_origin_y) * ref_pic_list0->stride_y;
+        if (ref_pic_list0->buffer_bit_inc_y) {
+            src_ptr = ref_pic_list0->buffer_y + ref_pic_list0->origin_x + pu_origin_x +
+                (ref_pic_list0->origin_y + pu_origin_y) * ref_pic_list0->stride_y;
 
-        src_ptr_2b = ref_pic_list0->buffer_bit_inc_y + ref_pic_list0->origin_x + pu_origin_x +
-            (ref_pic_list0->origin_y + pu_origin_y) * ref_pic_list0->stride_bit_inc_y;
+            src_ptr_2b = ref_pic_list0->buffer_bit_inc_y + ref_pic_list0->origin_x + pu_origin_x +
+                (ref_pic_list0->origin_y + pu_origin_y) * ref_pic_list0->stride_bit_inc_y;
+        }
+        else {
+            src_ptr_10b = ((uint16_t *)ref_pic_list0->buffer_y + ref_pic_list0->origin_x + pu_origin_x +
+                (ref_pic_list0->origin_y + pu_origin_y) * ref_pic_list0->stride_y);
+        }
 
 #else
         src_ptr = (uint16_t *)ref_pic_list0->buffer_y + ref_pic_list0->origin_x + pu_origin_x +
@@ -8024,8 +8030,12 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
         subpel_y = mv_q4.row & SUBPEL_MASK;
 
 #if FTR_MEM_OPT
-        src_ptr = src_ptr + (mv_q4.row >> SUBPEL_BITS) * ref_pic_list0->stride_y + (mv_q4.col >> SUBPEL_BITS);
-        src_ptr_2b = src_ptr_2b + (mv_q4.row >> SUBPEL_BITS) * ref_pic_list0->stride_bit_inc_y + (mv_q4.col >> SUBPEL_BITS);
+        if (ref_pic_list0->buffer_bit_inc_y) {
+            src_ptr = src_ptr + (mv_q4.row >> SUBPEL_BITS) * ref_pic_list0->stride_y + (mv_q4.col >> SUBPEL_BITS);
+            src_ptr_2b = src_ptr_2b + (mv_q4.row >> SUBPEL_BITS) * ref_pic_list0->stride_bit_inc_y + (mv_q4.col >> SUBPEL_BITS);
+        }
+        else
+            src_ptr_10b = src_ptr_10b + (mv_q4.row >> SUBPEL_BITS) * ref_pic_list0->stride_y + (mv_q4.col >> SUBPEL_BITS);
 
 #else
         src_ptr = src_ptr + (mv_q4.row >> SUBPEL_BITS) * ref_pic_list0->stride_y + (mv_q4.col >> SUBPEL_BITS);
@@ -8039,20 +8049,26 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
 #if FTR_MEM_OPT
 
         // pack the reference into temp 16bit buffer
-        uint8_t offset = INTERPOLATION_OFFSET;
         int32_t stride;
+        uint8_t offset = INTERPOLATION_OFFSET;
+        if (ref_pic_list0->buffer_bit_inc_y) {
 
-        pack_block(
-            src_ptr - offset - (offset*ref_pic_list0->stride_y),
-            ref_pic_list0->stride_y,
-            src_ptr_2b - offset - (offset*ref_pic_list0->stride_bit_inc_y),
-            ref_pic_list0->stride_bit_inc_y,
-            (uint16_t *)packed_buf,
-            MAX_SB_SIZE,
-            bwidth + (offset << 1),
-            bheight + (offset << 1));
-        src_ptr_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
-        stride = MAX_SB_SIZE;
+            pack_block(
+                src_ptr - offset - (offset*ref_pic_list0->stride_y),
+                ref_pic_list0->stride_y,
+                src_ptr_2b - offset - (offset*ref_pic_list0->stride_bit_inc_y),
+                ref_pic_list0->stride_bit_inc_y,
+                (uint16_t *)packed_buf,
+                MAX_SB_SIZE,
+                bwidth + (offset << 1),
+                bheight + (offset << 1));
+            src_ptr_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
+            stride = MAX_SB_SIZE;
+        }
+        else {
+            //src_ptr_10b = (uint16_t *)src_ptr;
+            stride = ref_pic_list0->stride_y;
+        }
 
 #endif
 
@@ -8077,15 +8093,23 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
             //List0-Cb
 #if FTR_MEM_OPT
             // get-ref
-            src_ptr = ref_pic_list0->buffer_cb +
-                (ref_pic_list0->origin_x + ((pu_origin_x >> 3) << 3)) / 2 +
-                (ref_pic_list0->origin_y + ((pu_origin_y >> 3) << 3)) / 2 *
-                ref_pic_list0->stride_cb;
+            if (ref_pic_list0->buffer_bit_inc_cb) {
+                src_ptr = ref_pic_list0->buffer_cb +
+                    (ref_pic_list0->origin_x + ((pu_origin_x >> 3) << 3)) / 2 +
+                    (ref_pic_list0->origin_y + ((pu_origin_y >> 3) << 3)) / 2 *
+                    ref_pic_list0->stride_cb;
 
-            src_ptr_2b = ref_pic_list0->buffer_bit_inc_cb +
-                (ref_pic_list0->origin_x + ((pu_origin_x >> 3) << 3)) / 2 +
-                (ref_pic_list0->origin_y + ((pu_origin_y >> 3) << 3)) / 2 *
-                ref_pic_list0->stride_bit_inc_cb;
+                src_ptr_2b = ref_pic_list0->buffer_bit_inc_cb +
+                    (ref_pic_list0->origin_x + ((pu_origin_x >> 3) << 3)) / 2 +
+                    (ref_pic_list0->origin_y + ((pu_origin_y >> 3) << 3)) / 2 *
+                    ref_pic_list0->stride_bit_inc_cb;
+            }
+            else {
+                src_ptr_10b = ((uint16_t *)ref_pic_list0->buffer_cb +
+                    (ref_pic_list0->origin_x + ((pu_origin_x >> 3) << 3)) / 2 +
+                    (ref_pic_list0->origin_y + ((pu_origin_y >> 3) << 3)) / 2 *
+                    ref_pic_list0->stride_cb);
+            }
 
 #else
             src_ptr = (uint16_t *)ref_pic_list0->buffer_cb +
@@ -8105,11 +8129,16 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
             subpel_y = mv_q4.row & SUBPEL_MASK;
 #if FTR_MEM_OPT
 
-            src_ptr =
-                src_ptr + (mv_q4.row >> SUBPEL_BITS) * ref_pic_list0->stride_cb + (mv_q4.col >> SUBPEL_BITS);
 
-            src_ptr_2b =
-                src_ptr_2b + (mv_q4.row >> SUBPEL_BITS) * ref_pic_list0->stride_bit_inc_cb + (mv_q4.col >> SUBPEL_BITS);
+            if (ref_pic_list0->buffer_bit_inc_cb) {
+                src_ptr =
+                    src_ptr + (mv_q4.row >> SUBPEL_BITS) * ref_pic_list0->stride_cb + (mv_q4.col >> SUBPEL_BITS);
+                src_ptr_2b =
+                    src_ptr_2b + (mv_q4.row >> SUBPEL_BITS) * ref_pic_list0->stride_bit_inc_cb + (mv_q4.col >> SUBPEL_BITS);
+            }
+            else
+                src_ptr_10b =
+                    src_ptr_10b + (mv_q4.row >> SUBPEL_BITS) * ref_pic_list0->stride_cb + (mv_q4.col >> SUBPEL_BITS);
 
 #else
             src_ptr =
@@ -8126,19 +8155,26 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
 #if FTR_MEM_OPT
 
             // pack the reference into temp 16bit buffer
-            offset = INTERPOLATION_OFFSET;
-            pack_block(
-                src_ptr - offset - (offset*ref_pic_list0->stride_cb),
-                ref_pic_list0->stride_cb,
-                src_ptr_2b - offset - (offset*ref_pic_list0->stride_bit_inc_cb),
-                ref_pic_list0->stride_bit_inc_cb,
-                (uint16_t *)packed_buf,
-                MAX_SB_SIZE,
-                blk_geom->bwidth_uv + (offset << 1),
-                blk_geom->bheight_uv + (offset << 1));
 
-            src_ptr_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
-            stride = MAX_SB_SIZE;
+            if (ref_pic_list0->buffer_bit_inc_cb) {
+                offset = INTERPOLATION_OFFSET;
+                pack_block(
+                    src_ptr - offset - (offset*ref_pic_list0->stride_cb),
+                    ref_pic_list0->stride_cb,
+                    src_ptr_2b - offset - (offset*ref_pic_list0->stride_bit_inc_cb),
+                    ref_pic_list0->stride_bit_inc_cb,
+                    (uint16_t *)packed_buf,
+                    MAX_SB_SIZE,
+                    blk_geom->bwidth_uv + (offset << 1),
+                    blk_geom->bheight_uv + (offset << 1));
+
+                src_ptr_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
+                stride = MAX_SB_SIZE;
+            }
+            else {
+               // src_ptr_10b =(uint16_t *) src_ptr;
+                stride = ref_pic_list0->stride_cb;
+            }
 
 #endif
 
@@ -8183,15 +8219,23 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
 #if FTR_MEM_OPT
             //get-ref
             //List0-Cr
-            src_ptr = ref_pic_list0->buffer_cr +
-                (ref_pic_list0->origin_x + ((pu_origin_x >> 3) << 3)) / 2 +
-                (ref_pic_list0->origin_y + ((pu_origin_y >> 3) << 3)) / 2 *
-                ref_pic_list0->stride_cr;
+            if (ref_pic_list0->buffer_bit_inc_cr) {
+                src_ptr = ref_pic_list0->buffer_cr +
+                    (ref_pic_list0->origin_x + ((pu_origin_x >> 3) << 3)) / 2 +
+                    (ref_pic_list0->origin_y + ((pu_origin_y >> 3) << 3)) / 2 *
+                    ref_pic_list0->stride_cr;
 
-            src_ptr_2b = ref_pic_list0->buffer_bit_inc_cr +
-                (ref_pic_list0->origin_x + ((pu_origin_x >> 3) << 3)) / 2 +
-                (ref_pic_list0->origin_y + ((pu_origin_y >> 3) << 3)) / 2 *
-                ref_pic_list0->stride_bit_inc_cr;
+                src_ptr_2b = ref_pic_list0->buffer_bit_inc_cr +
+                    (ref_pic_list0->origin_x + ((pu_origin_x >> 3) << 3)) / 2 +
+                    (ref_pic_list0->origin_y + ((pu_origin_y >> 3) << 3)) / 2 *
+                    ref_pic_list0->stride_bit_inc_cr;
+            }
+            else {
+                src_ptr_10b = ((uint16_t *)ref_pic_list0->buffer_cr +
+                    (ref_pic_list0->origin_x + ((pu_origin_x >> 3) << 3)) / 2 +
+                    (ref_pic_list0->origin_y + ((pu_origin_y >> 3) << 3)) / 2 *
+                    ref_pic_list0->stride_cr);
+            }
 
 
 #else
@@ -8213,11 +8257,14 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
             subpel_y = mv_q4.row & SUBPEL_MASK;
 #if FTR_MEM_OPT
 
-            src_ptr =
-                src_ptr + (mv_q4.row >> SUBPEL_BITS) * ref_pic_list0->stride_cr + (mv_q4.col >> SUBPEL_BITS);
-
-            src_ptr_2b =
-                src_ptr_2b + (mv_q4.row >> SUBPEL_BITS) * ref_pic_list0->stride_bit_inc_cr + (mv_q4.col >> SUBPEL_BITS);
+            if (ref_pic_list0->buffer_bit_inc_cr) {
+                src_ptr =
+                    src_ptr + (mv_q4.row >> SUBPEL_BITS) * ref_pic_list0->stride_cr + (mv_q4.col >> SUBPEL_BITS);
+                src_ptr_2b =
+                    src_ptr_2b + (mv_q4.row >> SUBPEL_BITS) * ref_pic_list0->stride_bit_inc_cr + (mv_q4.col >> SUBPEL_BITS);
+            }else
+                src_ptr_10b =
+                    src_ptr_10b + (mv_q4.row >> SUBPEL_BITS) * ref_pic_list0->stride_cr + (mv_q4.col >> SUBPEL_BITS);
 
 #else
             src_ptr =
@@ -8228,18 +8275,26 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
 #if FTR_MEM_OPT
             // pack the reference into temp 16bit buffer
 
-            pack_block(
-                src_ptr - offset - (offset*ref_pic_list0->stride_cr),
-                ref_pic_list0->stride_cb,
-                src_ptr_2b - offset - (offset*ref_pic_list0->stride_bit_inc_cr),
-                ref_pic_list0->stride_bit_inc_cr,
-                (uint16_t *)packed_buf,
-                MAX_SB_SIZE,
-                blk_geom->bwidth_uv + (offset << 1),
-                blk_geom->bheight_uv + (offset << 1));
+            if (ref_pic_list0->buffer_bit_inc_cr) {
+                pack_block(
+                    src_ptr - offset - (offset*ref_pic_list0->stride_cr),
+                    ref_pic_list0->stride_cb,
+                    src_ptr_2b - offset - (offset*ref_pic_list0->stride_bit_inc_cr),
+                    ref_pic_list0->stride_bit_inc_cr,
+                    (uint16_t *)packed_buf,
+                    MAX_SB_SIZE,
+                    blk_geom->bwidth_uv + (offset << 1),
+                    blk_geom->bheight_uv + (offset << 1));
 
-            src_ptr_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
-            stride = MAX_SB_SIZE;
+                src_ptr_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
+                stride = MAX_SB_SIZE;
+            }
+            else {
+
+              //  src_ptr_10b =(uint16_t *) src_ptr;
+                stride =  ref_pic_list0->stride_cr;
+
+            }
 
 
 #endif

@@ -5820,31 +5820,35 @@ uint8_t get_nic_level(PdPass pd_pass, EbEncMode enc_mode, uint8_t temporal_layer
     uint8_t nic_level;
 
     if (pd_pass == PD_PASS_0)
-        nic_level = 12;
+#if CLN_MD_STAGING_CTRLS
+        nic_level = 17;
+#else
+        nic_level = 16;
+#endif
     else if (enc_mode <= ENC_MRS)
         nic_level = 0;
     else if (enc_mode <= ENC_MR)
         nic_level = 1;
     else if (enc_mode <= ENC_M0)
-        nic_level = (temporal_layer_index == 0) ? 2 : 3;
+        nic_level = (temporal_layer_index == 0) ? 2 : 4;
     else if (enc_mode <= ENC_M1)
-        nic_level = 4;
-    else if (enc_mode <= ENC_M2)
         nic_level = 5;
+    else if (enc_mode <= ENC_M2)
+        nic_level = 9;
     else if (enc_mode <= ENC_M3)
-        nic_level = 6;
-    else if (enc_mode <= ENC_M4)
-        nic_level = 7;
-    else if (enc_mode <= ENC_M5)
-        nic_level = 8;
-    else if (enc_mode <= ENC_M6)
-        nic_level = (temporal_layer_index == 0) ? 8 : 10;
-    else if (enc_mode <= ENC_M7)
         nic_level = 10;
-    else if (enc_mode <= ENC_M11)
+    else if (enc_mode <= ENC_M4)
         nic_level = 11;
-    else
+    else if (enc_mode <= ENC_M5)
         nic_level = 12;
+    else if (enc_mode <= ENC_M6)
+        nic_level = (temporal_layer_index == 0) ? 12 : 14;
+    else if (enc_mode <= ENC_M7)
+        nic_level = 14;
+    else if (enc_mode <= ENC_M11)
+        nic_level = 15;
+    else
+        nic_level = 16;
 
     return nic_level;
 }
@@ -5862,10 +5866,12 @@ uint8_t set_nic_controls(ModeDecisionContext *ctx, uint8_t nic_level) {
 
     NicPruningCtrls* nic_pruning_ctrls = ctx ? &ctx->nic_ctrls.pruning_ctrls : NULL;
     uint8_t nic_scaling_level = 0;
-
+#if CLN_MD_STAGING_CTRLS
+    uint8_t md_staging_mode = MD_STAGING_MODE_0;
+#endif
     switch (nic_level)
     {
-    case 0: // (0,0)
+    case 0: // MAX NIC scaling; no pruning
         // NIC scaling level
         nic_scaling_level = 0;
 
@@ -5883,9 +5889,12 @@ uint8_t set_nic_controls(ModeDecisionContext *ctx, uint8_t nic_level) {
             nic_pruning_ctrls->mds2_cand_base_th = (uint64_t)~0;
             nic_pruning_ctrls->mds3_cand_base_th = (uint64_t)~0;
         }
+#if CLN_MD_STAGING_CTRLS
+        md_staging_mode = MD_STAGING_MODE_1;
+#endif
         break;
 
-    case 1:// (0,1)
+    case 1:
         // NIC scaling level
         nic_scaling_level = 0;
 
@@ -5907,9 +5916,12 @@ uint8_t set_nic_controls(ModeDecisionContext *ctx, uint8_t nic_level) {
             nic_pruning_ctrls->mds2_cand_base_th = 50;
             nic_pruning_ctrls->mds3_cand_base_th = 50;
         }
+#if CLN_MD_STAGING_CTRLS
+        md_staging_mode = MD_STAGING_MODE_2;
+#endif
         break;
 
-    case 2:// (1,1)
+    case 2:
         // NIC scaling level
         nic_scaling_level = 1;
 
@@ -5931,9 +5943,39 @@ uint8_t set_nic_controls(ModeDecisionContext *ctx, uint8_t nic_level) {
             nic_pruning_ctrls->mds2_cand_base_th = 50;
             nic_pruning_ctrls->mds3_cand_base_th = 50;
         }
+#if CLN_MD_STAGING_CTRLS
+        md_staging_mode = MD_STAGING_MODE_2;
+#endif
         break;
 
-    case 3:// (2,3)
+    case 3:
+        // NIC scaling level
+        nic_scaling_level = 1;
+
+        if (nic_pruning_ctrls) {
+            // Class pruning settings
+            nic_pruning_ctrls->mds1_class_th = (uint64_t)~0;
+
+            nic_pruning_ctrls->mds2_class_th = 25;
+            nic_pruning_ctrls->mds2_band_cnt = 4;
+
+            nic_pruning_ctrls->mds3_class_th = 25;
+            nic_pruning_ctrls->mds3_band_cnt = 8;
+
+            nic_pruning_ctrls->enable_skipping_mds1 = 0;
+            nic_pruning_ctrls->force_1_cand_th = 0;
+
+            // Cand pruning settings
+            nic_pruning_ctrls->mds1_cand_base_th = 500;
+            nic_pruning_ctrls->mds2_cand_base_th = 30;
+            nic_pruning_ctrls->mds3_cand_base_th = 30;
+        }
+#if CLN_MD_STAGING_CTRLS
+        md_staging_mode = MD_STAGING_MODE_2;
+#endif
+        break;
+
+    case 4:
         // NIC scaling level
         nic_scaling_level = 2;
 
@@ -5956,9 +5998,12 @@ uint8_t set_nic_controls(ModeDecisionContext *ctx, uint8_t nic_level) {
             nic_pruning_ctrls->mds2_cand_base_th = 20;
             nic_pruning_ctrls->mds3_cand_base_th = 20;
         }
+#if CLN_MD_STAGING_CTRLS
+        md_staging_mode = MD_STAGING_MODE_2;
+#endif
         break;
 
-    case 4:// (2,4 mod)
+    case 5:
         // NIC scaling level
         nic_scaling_level = 2;
 
@@ -5981,9 +6026,96 @@ uint8_t set_nic_controls(ModeDecisionContext *ctx, uint8_t nic_level) {
             nic_pruning_ctrls->mds2_cand_base_th = 20;
             nic_pruning_ctrls->mds3_cand_base_th = 15;
         }
+#if CLN_MD_STAGING_CTRLS
+        md_staging_mode = MD_STAGING_MODE_2;
+#endif
         break;
 
-    case 5:// (6,4 mod)
+    case 6:
+        // NIC scaling level
+        nic_scaling_level = 3;
+
+        if (nic_pruning_ctrls) {
+            // Class pruning settings
+            nic_pruning_ctrls->mds1_class_th = 500;
+            nic_pruning_ctrls->mds1_band_cnt = 3;
+
+            nic_pruning_ctrls->mds2_class_th = 25;
+            nic_pruning_ctrls->mds2_band_cnt = 8;
+
+            nic_pruning_ctrls->mds3_class_th = 20;
+            nic_pruning_ctrls->mds3_band_cnt = 12;
+
+            nic_pruning_ctrls->enable_skipping_mds1 = 0;
+            nic_pruning_ctrls->force_1_cand_th = 0;
+
+            // Cand pruning settings
+            nic_pruning_ctrls->mds1_cand_base_th = 300;
+            nic_pruning_ctrls->mds2_cand_base_th = 20;
+            nic_pruning_ctrls->mds3_cand_base_th = 15;
+        }
+#if CLN_MD_STAGING_CTRLS
+        md_staging_mode = MD_STAGING_MODE_2;
+#endif
+        break;
+
+    case 7:
+        // NIC scaling level
+        nic_scaling_level = 4;
+
+        if (nic_pruning_ctrls) {
+            // Class pruning settings
+            nic_pruning_ctrls->mds1_class_th = 500;
+            nic_pruning_ctrls->mds1_band_cnt = 3;
+
+            nic_pruning_ctrls->mds2_class_th = 25;
+            nic_pruning_ctrls->mds2_band_cnt = 8;
+
+            nic_pruning_ctrls->mds3_class_th = 20;
+            nic_pruning_ctrls->mds3_band_cnt = 12;
+
+            nic_pruning_ctrls->enable_skipping_mds1 = 0;
+            nic_pruning_ctrls->force_1_cand_th = 0;
+
+            // Cand pruning settings
+            nic_pruning_ctrls->mds1_cand_base_th = 300;
+            nic_pruning_ctrls->mds2_cand_base_th = 20;
+            nic_pruning_ctrls->mds3_cand_base_th = 15;
+        }
+#if CLN_MD_STAGING_CTRLS
+        md_staging_mode = MD_STAGING_MODE_2;
+#endif
+        break;
+
+    case 8:
+        // NIC scaling level
+        nic_scaling_level = 5;
+
+        if (nic_pruning_ctrls) {
+            // Class pruning settings
+            nic_pruning_ctrls->mds1_class_th = 500;
+            nic_pruning_ctrls->mds1_band_cnt = 3;
+
+            nic_pruning_ctrls->mds2_class_th = 25;
+            nic_pruning_ctrls->mds2_band_cnt = 8;
+
+            nic_pruning_ctrls->mds3_class_th = 20;
+            nic_pruning_ctrls->mds3_band_cnt = 12;
+
+            nic_pruning_ctrls->enable_skipping_mds1 = 0;
+            nic_pruning_ctrls->force_1_cand_th = 0;
+
+            // Cand pruning settings
+            nic_pruning_ctrls->mds1_cand_base_th = 300;
+            nic_pruning_ctrls->mds2_cand_base_th = 20;
+            nic_pruning_ctrls->mds3_cand_base_th = 15;
+        }
+#if CLN_MD_STAGING_CTRLS
+        md_staging_mode = MD_STAGING_MODE_2;
+#endif
+        break;
+
+    case 9:
         // NIC scaling level
         nic_scaling_level = 6;
 
@@ -6006,9 +6138,12 @@ uint8_t set_nic_controls(ModeDecisionContext *ctx, uint8_t nic_level) {
             nic_pruning_ctrls->mds2_cand_base_th = 20;
             nic_pruning_ctrls->mds3_cand_base_th = 15;
         }
+#if CLN_MD_STAGING_CTRLS
+        md_staging_mode = MD_STAGING_MODE_2;
+#endif
         break;
 
-    case 6:// (6,4)
+    case 10:
         // NIC scaling level
         nic_scaling_level = 6;
 
@@ -6031,9 +6166,12 @@ uint8_t set_nic_controls(ModeDecisionContext *ctx, uint8_t nic_level) {
             nic_pruning_ctrls->mds2_cand_base_th = 20;
             nic_pruning_ctrls->mds3_cand_base_th = 15;
         }
+#if CLN_MD_STAGING_CTRLS
+        md_staging_mode = MD_STAGING_MODE_2;
+#endif
         break;
 
-    case 7:// (8,4)
+    case 11:
         // NIC scaling level
         nic_scaling_level = 8;
 
@@ -6056,9 +6194,12 @@ uint8_t set_nic_controls(ModeDecisionContext *ctx, uint8_t nic_level) {
             nic_pruning_ctrls->mds2_cand_base_th = 20;
             nic_pruning_ctrls->mds3_cand_base_th = 15;
         }
+#if CLN_MD_STAGING_CTRLS
+        md_staging_mode = MD_STAGING_MODE_2;
+#endif
         break;
 
-    case 8:// (11,4)
+    case 12:
         // NIC scaling level
         nic_scaling_level = 11;
 
@@ -6081,9 +6222,12 @@ uint8_t set_nic_controls(ModeDecisionContext *ctx, uint8_t nic_level) {
             nic_pruning_ctrls->mds2_cand_base_th = 20;
             nic_pruning_ctrls->mds3_cand_base_th = 15;
         }
+#if CLN_MD_STAGING_CTRLS
+        md_staging_mode = MD_STAGING_MODE_1;
+#endif
         break;
 
-    case 9:// (11,5)
+    case 13:
         // NIC scaling level
         nic_scaling_level = 11;
 
@@ -6106,9 +6250,12 @@ uint8_t set_nic_controls(ModeDecisionContext *ctx, uint8_t nic_level) {
             nic_pruning_ctrls->mds2_cand_base_th = 15;
             nic_pruning_ctrls->mds3_cand_base_th = 15;
         }
+#if CLN_MD_STAGING_CTRLS
+        md_staging_mode = MD_STAGING_MODE_1;
+#endif
         break;
 
-    case 10:// (12,5)
+    case 14:
         // NIC scaling level
         nic_scaling_level = 12;
 
@@ -6131,9 +6278,12 @@ uint8_t set_nic_controls(ModeDecisionContext *ctx, uint8_t nic_level) {
             nic_pruning_ctrls->mds2_cand_base_th = 15;
             nic_pruning_ctrls->mds3_cand_base_th = 15;
         }
+#if CLN_MD_STAGING_CTRLS
+        md_staging_mode = MD_STAGING_MODE_1;
+#endif
         break;
 
-    case 11:// (14,7)
+    case 15:
         // NIC scaling level
         nic_scaling_level = 14;
 
@@ -6156,9 +6306,12 @@ uint8_t set_nic_controls(ModeDecisionContext *ctx, uint8_t nic_level) {
             nic_pruning_ctrls->mds2_cand_base_th = 5;
             nic_pruning_ctrls->mds3_cand_base_th = 5;
         }
+#if CLN_MD_STAGING_CTRLS
+        md_staging_mode = MD_STAGING_MODE_1;
+#endif
         break;
 
-    case 12:// (15,12)
+    case 16:
         // NIC scaling level
         nic_scaling_level = 15;
 
@@ -6181,6 +6334,35 @@ uint8_t set_nic_controls(ModeDecisionContext *ctx, uint8_t nic_level) {
             nic_pruning_ctrls->mds2_cand_base_th = 1;
             nic_pruning_ctrls->mds3_cand_base_th = 1;
         }
+#if CLN_MD_STAGING_CTRLS
+        md_staging_mode = MD_STAGING_MODE_1;
+        break;
+
+    case 17:
+        // NIC scaling level
+        nic_scaling_level = 15;
+
+        if (nic_pruning_ctrls) {
+            // Class pruning settings
+            nic_pruning_ctrls->mds1_class_th = 75;
+            nic_pruning_ctrls->mds1_band_cnt = 16;
+
+            nic_pruning_ctrls->mds2_class_th = 0;
+            nic_pruning_ctrls->mds2_band_cnt = 2;
+
+            nic_pruning_ctrls->mds3_class_th = 0;
+            nic_pruning_ctrls->mds3_band_cnt = 2;
+
+            nic_pruning_ctrls->enable_skipping_mds1 = 1;
+            nic_pruning_ctrls->force_1_cand_th = 0;
+
+            // Cand pruning settings
+            nic_pruning_ctrls->mds1_cand_base_th = 1;
+            nic_pruning_ctrls->mds2_cand_base_th = 1;
+            nic_pruning_ctrls->mds3_cand_base_th = 1;
+        }
+        md_staging_mode = MD_STAGING_MODE_0;
+#endif
         break;
     default:
         assert(0);
@@ -6192,6 +6374,9 @@ uint8_t set_nic_controls(ModeDecisionContext *ctx, uint8_t nic_level) {
         nic_scaling_ctrls->stage1_scaling_num = MD_STAGE_NICS_SCAL_NUM[nic_scaling_level][MD_STAGE_1];
         nic_scaling_ctrls->stage2_scaling_num = MD_STAGE_NICS_SCAL_NUM[nic_scaling_level][MD_STAGE_2];
         nic_scaling_ctrls->stage3_scaling_num = MD_STAGE_NICS_SCAL_NUM[nic_scaling_level][MD_STAGE_3];
+#if CLN_MD_STAGING_CTRLS
+        ctx->nic_ctrls.md_staging_mode = md_staging_mode;
+#endif
     }
 
     return nic_scaling_level;
@@ -6906,6 +7091,24 @@ void set_lpd1_ctrls(ModeDecisionContext *ctx, uint8_t lpd1_lvl) {
 }
 #endif
 #endif
+#if RFCT_ME8X8
+// use this function to set the disallow_below_16x16 level and to set the accompanying enable_me_8x8 level
+uint8_t get_disallow_below_16x16_picture_level(EbEncMode enc_mode, EbInputResolution resolution, EB_SLICE slice_type, uint8_t sc_class1) {
+
+    uint8_t disallow_below_16x16 = 0;
+
+    if (sc_class1)
+        disallow_below_16x16 = 0;
+    else if (enc_mode <= ENC_M7)
+        disallow_below_16x16 = 0;
+    else if (enc_mode <= ENC_M11)
+        disallow_below_16x16 = (resolution <= INPUT_SIZE_720p_RANGE) ? 0 : ((slice_type == I_SLICE) ? 0 : 1);
+    else
+        disallow_below_16x16 = (slice_type == I_SLICE) ? 0 : 1;
+
+    return disallow_below_16x16;
+}
+#endif
 /*
  * Generate per-SB MD settings (do not change per-PD)
  */
@@ -7062,9 +7265,17 @@ EbErrorType signal_derivation_enc_dec_kernel_common(
     else if (enc_mode <= ENC_M9)
         ctx->pd0_level = LIGHT_PD0_LVL2;
     else if (enc_mode <= ENC_M10)
+#if TUNE_4K_STABILITY
+        ctx->pd0_level = scs_ptr->input_resolution <= INPUT_SIZE_1080p_RANGE ? LIGHT_PD0_LVL3 : LIGHT_PD0_LVL2;
+#else
         ctx->pd0_level = LIGHT_PD0_LVL3;
+#endif
     else
+#if TUNE_4K_STABILITY
+        ctx->pd0_level = scs_ptr->input_resolution <= INPUT_SIZE_1080p_RANGE? (pcs_ptr->parent_pcs_ptr->temporal_layer_index == 0 ? LIGHT_PD0_LVL4 : VERY_LIGHT_PD0) : LIGHT_PD0_LVL2;
+#else
         ctx->pd0_level = pcs_ptr->parent_pcs_ptr->temporal_layer_index == 0 ? LIGHT_PD0_LVL4 : VERY_LIGHT_PD0;
+#endif
 #else
 #if LIGHT_PD0
 #if FTR_VLPD0
@@ -7135,6 +7346,9 @@ that use 8x8 blocks will lose significant BD-Rate as the parent 16x16 me data wi
 */
 #endif
 #if SHUT_8x8_IF_NON_ISLICE
+#if RFCT_ME8X8
+    ctx->depth_removal_ctrls.disallow_below_16x16 = get_disallow_below_16x16_picture_level(enc_mode, scs_ptr->input_resolution, pcs_ptr->slice_type, pcs_ptr->parent_pcs_ptr->sc_class1);
+#else
     if (pcs_ptr->parent_pcs_ptr->sc_class1)
         ctx->depth_removal_ctrls.disallow_below_16x16 = 0;
 #if TUNE_M8_M10
@@ -7161,6 +7375,7 @@ that use 8x8 blocks will lose significant BD-Rate as the parent 16x16 me data wi
 #endif
     else
         ctx->depth_removal_ctrls.disallow_below_16x16 = (pcs_ptr->slice_type == I_SLICE) ? 0 : 1;
+#endif
 
     if (sb_params->width % 32 != 0 || sb_params->height % 32 != 0)
         ctx->depth_removal_ctrls.disallow_below_64x64 = EB_FALSE;
@@ -7182,7 +7397,11 @@ that use 8x8 blocks will lose significant BD-Rate as the parent 16x16 me data wi
 #if TUNE_M8_M10
 #if TUNE_4K_M8_M11
 #if CLN_M6_M12_FEATURES
+#if TUNE_IMPROVE_M12
+            else if (enc_mode <= ENC_M12)
+#else
             else if (enc_mode <= ENC_M11)
+#endif
 #else
             else if (enc_mode <= ENC_M7)
 #endif
@@ -7413,7 +7632,11 @@ that use 8x8 blocks will lose significant BD-Rate as the parent 16x16 me data wi
             else if (scs_ptr->input_resolution <= INPUT_SIZE_1080p_RANGE)
                 depth_removal_level = (pcs_ptr->temporal_layer_index == 0) ? 5 : 14;
             else
+#if TUNE_4K_STABILITY
+                depth_removal_level = (pcs_ptr->temporal_layer_index == 0) ? 5 : 11;
+#else
                 depth_removal_level = (pcs_ptr->temporal_layer_index == 0) ? 11 : 15;
+#endif
 #else
             if (scs_ptr->input_resolution <= INPUT_SIZE_360p_RANGE)
                 depth_removal_level = (pcs_ptr->temporal_layer_index == 0) ? 3 : 6;
@@ -7807,7 +8030,11 @@ that use 8x8 blocks will lose significant BD-Rate as the parent 16x16 me data wi
     else if (enc_mode <= ENC_M12)
         lpd1_lvl = pcs_ptr->parent_pcs_ptr->temporal_layer_index == 0 ? 0 : 3;
     else
+#if TUNE_M13_LPD1_LVL
+        lpd1_lvl = pcs_ptr->parent_pcs_ptr->temporal_layer_index == 0 ? 0 : 4;
+#else
         lpd1_lvl = pcs_ptr->parent_pcs_ptr->temporal_layer_index == 0 ? 3 : 4;
+#endif
 #else
 #if TUNE_M9_M10
 #if TUNE_M7_M8_3
@@ -9734,7 +9961,7 @@ void signal_derivation_enc_dec_kernel_oq_light_pd1(
         cand_reduction_level = 5;
 
     if (pcs_ptr->parent_pcs_ptr->scs_ptr->rc_stat_gen_pass_mode)
-        cand_reduction_level = 0;
+        cand_reduction_level = 5;
 
     set_cand_reduction_ctrls(pcs_ptr, context_ptr, cand_reduction_level,
         picture_qp,
@@ -10935,7 +11162,6 @@ EbErrorType signal_derivation_enc_dec_kernel_oq(
     uint32_t me_8x8_cost_variance = (uint32_t)~0;
     uint32_t me_64x64_distortion = (uint32_t)~0;
     uint8_t l0_was_skip = 0, l1_was_skip = 0;
-    uint8_t l0_was_64x64_mvp = 0, l1_was_64x64_mvp = 0;
     uint8_t ref_skip_perc = pcs_ptr->ref_skip_percentage;
 
     uint8_t cand_reduction_level = 0;
@@ -10951,7 +11177,7 @@ EbErrorType signal_derivation_enc_dec_kernel_oq(
         cand_reduction_level = 2;
 
     if (pcs_ptr->parent_pcs_ptr->scs_ptr->rc_stat_gen_pass_mode)
-        cand_reduction_level = 0;
+        cand_reduction_level = 5;
 
     set_cand_reduction_ctrls(pcs_ptr, context_ptr, cand_reduction_level,
         picture_qp,
@@ -11632,6 +11858,13 @@ EbErrorType signal_derivation_enc_dec_kernel_oq(
 #endif
     set_near_count_ctrls(context_ptr, near_count_level);
 #endif
+
+
+#if CLN_WM_SIG
+    //set Warped-Motion controls from Picture level.
+    set_wm_controls(context_ptr, pd_pass == PD_PASS_0 ? 0 : pcs_ptr->wm_level);
+#else
+
 #if FTR_NEW_WM_LVL
     // Set warped motion injection
     // Level                Settings
@@ -11728,6 +11961,9 @@ EbErrorType signal_derivation_enc_dec_kernel_oq(
     else
         context_ptr->warped_motion_injection = 1;
 #endif
+
+#endif
+
 
     // Set unipred3x3 injection
     // Level                Settings
@@ -11855,7 +12091,7 @@ EbErrorType signal_derivation_enc_dec_kernel_oq(
     }
 
     set_dist_based_ref_pruning_controls(context_ptr, context_ptr->dist_based_ref_pruning);
-
+#if !CLN_MD_STAGING_CTRLS
     if (pd_pass == PD_PASS_0) {
         context_ptr->md_staging_mode = MD_STAGING_MODE_0;
     }
@@ -11864,7 +12100,7 @@ EbErrorType signal_derivation_enc_dec_kernel_oq(
             context_ptr->md_staging_mode = MD_STAGING_MODE_2;
         else
             context_ptr->md_staging_mode = MD_STAGING_MODE_1;
-
+#endif
     // spatial_sse_full_loop_level
 #if TUNE_BLOCK_SIZE
     uint8_t spatial_sse_full_loop_level = 0;
@@ -12778,19 +13014,30 @@ EbErrorType signal_derivation_enc_dec_kernel_oq(
 #else
         context_ptr->md_subpel_me_level = enc_mode <= ENC_M6 ? 3 : 0;
 #endif
+#if CLN_SUBPEL_LVL
+    else if (enc_mode <= ENC_M0)
+        context_ptr->md_subpel_me_level = 1;
+    else if (enc_mode <= ENC_M6)
+        context_ptr->md_subpel_me_level = pcs_ptr->parent_pcs_ptr->input_resolution <= INPUT_SIZE_480p_RANGE ? 1 : 2;
+#else
     else
         if (enc_mode <= ENC_M4)
             context_ptr->md_subpel_me_level = 1;
+#endif
 #if TUNE_M8_M10 && !TUNE_4K_M8_M11
         else if (enc_mode <= ENC_M8)
 #else
+#if !CLN_SUBPEL_LVL
 #if TUNE_M7_M8_3
         else if (enc_mode <= ENC_M6)
 #else
         else if (enc_mode <= ENC_M7)
 #endif
 #endif
+#endif
+#if !CLN_SUBPEL_LVL
             context_ptr->md_subpel_me_level = pcs_ptr->parent_pcs_ptr->input_resolution <= INPUT_SIZE_480p_RANGE ? 1 : 2;
+#endif
 #if TUNE_M7_M8_3
 #if TUNE_M8_SLOWDOWN
         else if (enc_mode <= ENC_M8)
@@ -12937,7 +13184,14 @@ EbErrorType signal_derivation_enc_dec_kernel_oq(
         context_ptr->md_subpel_me_level = 6;
 #endif
     md_subpel_me_controls(context_ptr, context_ptr->md_subpel_me_level);
-
+#if CLN_SUBPEL_LVL
+    if (pd_pass == PD_PASS_0)
+        context_ptr->md_subpel_pme_level = enc_mode <= ENC_M0 ? 3 : 0;
+    else if (enc_mode <= ENC_M0)
+        context_ptr->md_subpel_pme_level = 1;
+    else
+        context_ptr->md_subpel_pme_level = pcs_ptr->parent_pcs_ptr->input_resolution <= INPUT_SIZE_1080p_RANGE ? 2 : 4;
+#else
     if (pd_pass == PD_PASS_0)
         context_ptr->md_subpel_pme_level = enc_mode <= ENC_M4 ? 3 : 0;
 #if TUNE_M10_M7
@@ -13012,6 +13266,7 @@ EbErrorType signal_derivation_enc_dec_kernel_oq(
     else
         context_ptr->md_subpel_pme_level = 2;
 #endif
+#endif
     md_subpel_pme_controls(context_ptr, context_ptr->md_subpel_pme_level);
 #if !CLN_INTRA_CTRLS
     // Set dc_cand_only_flag
@@ -13069,7 +13324,11 @@ EbErrorType signal_derivation_enc_dec_kernel_oq(
         else if (enc_mode <= ENC_M11)
             rate_est_level = (pcs_ptr->slice_type == I_SLICE) ? 3 : 4;
         else
+#if TUNE_IMPROVE_M12
+            rate_est_level = pcs_ptr->slice_type == I_SLICE ? 3 : (pcs_ptr->parent_pcs_ptr->input_resolution <= INPUT_SIZE_720p_RANGE) ? 4 : 0;
+#else
             rate_est_level = pcs_ptr->slice_type == I_SLICE ? 3 : (pcs_ptr->parent_pcs_ptr->input_resolution <= INPUT_SIZE_1080p_RANGE) ? 0 : 4;
+#endif
     }
 
     set_rate_est_ctrls(context_ptr, rate_est_level);
