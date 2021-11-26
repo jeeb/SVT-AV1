@@ -8402,7 +8402,13 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
             &picture_control_set_ptr->parent_pcs_ptr->scs_ptr->seq_header,
             picture_control_set_ptr->parent_pcs_ptr->cur_order_hint, // cur_frame_index,
             picture_control_set_ptr->parent_pcs_ptr->ref_order_hint[rf[0] - 1], // bck_frame_index,
+#if FIX_ISSUE_105
+            (rf[1] == NONE_FRAME)
+            ? (uint32_t) ~0 // invalid
+            : picture_control_set_ptr->parent_pcs_ptr->ref_order_hint[rf[1] - 1], // fwd_frame_index,
+#else
             picture_control_set_ptr->parent_pcs_ptr->ref_order_hint[rf[1] - 1], // fwd_frame_index,
+#endif
             compound_idx,
             0, // order_idx,
             &conv_params.fwd_offset,
@@ -8529,8 +8535,15 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
                 picture_control_set_ptr->parent_pcs_ptr->cur_order_hint, // cur_frame_index,
                 picture_control_set_ptr->parent_pcs_ptr
                 ->ref_order_hint[rf[0] - 1], // bck_frame_index,
+#if FIX_ISSUE_105
+                (rf[1] == NONE_FRAME)
+                ? (uint32_t) ~0 // invalid
+                : picture_control_set_ptr->parent_pcs_ptr
+                ->ref_order_hint[rf[1] - 1], // fwd_frame_index,
+#else
                 picture_control_set_ptr->parent_pcs_ptr
                 ->ref_order_hint[rf[1] - 1], // fwd_frame_index,
+#endif
                 compound_idx,
                 0, // order_idx,
                 &conv_params.fwd_offset,
@@ -8662,8 +8675,15 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
                 picture_control_set_ptr->parent_pcs_ptr->cur_order_hint, // cur_frame_index,
                 picture_control_set_ptr->parent_pcs_ptr
                 ->ref_order_hint[rf[0] - 1], // bck_frame_index,
+#if FIX_ISSUE_105
+                (rf[1] == NONE_FRAME)
+                ? (uint32_t) ~0 // invalid
+                : picture_control_set_ptr->parent_pcs_ptr
+                ->ref_order_hint[rf[1] - 1], // fwd_frame_index,
+#else
                 picture_control_set_ptr->parent_pcs_ptr
                 ->ref_order_hint[rf[1] - 1], // fwd_frame_index,
+#endif
                 compound_idx,
                 0, // order_idx,
                 &conv_params.fwd_offset,
