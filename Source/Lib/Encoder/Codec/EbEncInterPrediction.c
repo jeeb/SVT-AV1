@@ -7772,8 +7772,13 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
         const int32_t row_start = (block_size_high[bsize] == 4) && ss_y ? -1 : 0;
         const int32_t col_start = (block_size_wide[bsize] == 4) && ss_x ? -1 : 0;
 
+#if FIX_INT_OVERLOW
+        const int32_t pre_x = ((int32_t)mi_x + MI_SIZE * col_start) >> ss_x;
+        const int32_t pre_y = ((int32_t)mi_y + MI_SIZE * row_start) >> ss_y;
+#else
         const int32_t pre_x = (mi_x + MI_SIZE * col_start) >> ss_x;
         const int32_t pre_y = (mi_y + MI_SIZE * row_start) >> ss_y;
+#endif
         UNUSED(pre_x);
         UNUSED(pre_y);
 

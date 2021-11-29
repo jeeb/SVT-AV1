@@ -2892,8 +2892,13 @@ static void tf_16x16_sub_pel_search(PictureParentControlSet *pcs_ptr, MeContext 
                 uint16_t local_origin_y = idx_y * bsize;
                 uint16_t pu_origin_x    = sb_origin_x + local_origin_x;
                 uint16_t pu_origin_y    = sb_origin_y + local_origin_y;
+#if FIX_INT_OVERLOW
+                int32_t mirow          = pu_origin_y >> MI_SIZE_LOG2;
+                int32_t micol          = pu_origin_x >> MI_SIZE_LOG2;
+#else
                 uint32_t mirow          = pu_origin_y >> MI_SIZE_LOG2;
                 uint32_t micol          = pu_origin_x >> MI_SIZE_LOG2;
+#endif
                 blk_ptr.mds_idx         = get_mds_idx(
                     local_origin_x,
                     local_origin_y,
@@ -3533,8 +3538,13 @@ static void tf_64x64_sub_pel_search(PictureParentControlSet *pcs_ptr, MeContext 
     uint16_t local_origin_y = 0;
     uint16_t pu_origin_x = sb_origin_x + local_origin_x;
     uint16_t pu_origin_y = sb_origin_y + local_origin_y;
+#if FIX_INT_OVERLOW
+    int32_t mirow = pu_origin_y >> MI_SIZE_LOG2;
+    int32_t micol = pu_origin_x >> MI_SIZE_LOG2;
+#else
     uint32_t mirow = pu_origin_y >> MI_SIZE_LOG2;
     uint32_t micol = pu_origin_x >> MI_SIZE_LOG2;
+#endif
 
 #if OPT_EARLY_TF_ME_EXIT
 #if FIX_SVT_POSITION_CHECK_CPP
@@ -4080,8 +4090,13 @@ static void tf_32x32_sub_pel_search(PictureParentControlSet *pcs_ptr, MeContext 
     uint16_t local_origin_y = idx_y * bsize;
     uint16_t pu_origin_x    = sb_origin_x + local_origin_x;
     uint16_t pu_origin_y    = sb_origin_y + local_origin_y;
+#if FIX_INT_OVERLOW
+    int32_t mirow          = pu_origin_y >> MI_SIZE_LOG2;
+    int32_t micol          = pu_origin_x >> MI_SIZE_LOG2;
+#else
     uint32_t mirow          = pu_origin_y >> MI_SIZE_LOG2;
     uint32_t micol          = pu_origin_x >> MI_SIZE_LOG2;
+#endif
 #if FIX_SVT_POSITION_CHECK_CPP
     blk_struct.mds_idx = get_mds_idx(local_origin_x,
         local_origin_y,
@@ -4981,8 +4996,13 @@ static void tf_64x64_inter_prediction(PictureParentControlSet *pcs_ptr, MeContex
     uint16_t local_origin_y = 0;
     uint16_t pu_origin_x = sb_origin_x + local_origin_x;
     uint16_t pu_origin_y = sb_origin_y + local_origin_y;
+#if FIX_INT_OVERLOW
+    int32_t mirow = pu_origin_y >> MI_SIZE_LOG2;
+    int32_t micol = pu_origin_x >> MI_SIZE_LOG2;
+#else
     uint32_t mirow = pu_origin_y >> MI_SIZE_LOG2;
     uint32_t micol = pu_origin_x >> MI_SIZE_LOG2;
+#endif
     blk_ptr.mds_idx = get_mds_idx(local_origin_x,
         local_origin_y,
         bsize,
@@ -5099,8 +5119,13 @@ static void tf_32x32_inter_prediction(PictureParentControlSet *pcs_ptr, MeContex
                 uint16_t local_origin_y = idx_y * bsize;
                 uint16_t pu_origin_x    = sb_origin_x + local_origin_x;
                 uint16_t pu_origin_y    = sb_origin_y + local_origin_y;
+#if FIX_INT_OVERLOW
+                int32_t mirow           = pu_origin_y >> MI_SIZE_LOG2;
+                int32_t micol           = pu_origin_x >> MI_SIZE_LOG2;
+#else
                 uint32_t mirow          = pu_origin_y >> MI_SIZE_LOG2;
                 uint32_t micol          = pu_origin_x >> MI_SIZE_LOG2;
+#endif
                 blk_ptr.mds_idx         = get_mds_idx(
                     local_origin_x,
                     local_origin_y,
@@ -5167,8 +5192,13 @@ static void tf_32x32_inter_prediction(PictureParentControlSet *pcs_ptr, MeContex
             uint16_t local_origin_y = idx_y * bsize;
             uint16_t pu_origin_x    = sb_origin_x + local_origin_x;
             uint16_t pu_origin_y    = sb_origin_y + local_origin_y;
+#if FIX_INT_OVERLOW
+            int32_t mirow           = pu_origin_y >> MI_SIZE_LOG2;
+            int32_t micol           = pu_origin_x >> MI_SIZE_LOG2;
+#else
             uint32_t mirow          = pu_origin_y >> MI_SIZE_LOG2;
             uint32_t micol          = pu_origin_x >> MI_SIZE_LOG2;
+#endif
             blk_ptr.mds_idx         = get_mds_idx(local_origin_x,
                                           local_origin_y,
                                           bsize,

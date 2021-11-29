@@ -1405,7 +1405,11 @@ uint32_t get_me_info_index(uint32_t max_me_block, const BlockGeom *blk_geom, uin
     (me_pu_result)->distortion_direction[(num)].direction  = (dir);
 
 #if FTR_ADJUST_SR_FOR_STILL
+#if FIX_INT_OVERLOW
+uint32_t check_00_center(EbPictureBufferDesc *ref_pic_ptr, MeContext *context_ptr,
+#else
 uint16_t check_00_center(EbPictureBufferDesc *ref_pic_ptr, MeContext *context_ptr,
+#endif
 #else
 EbErrorType check_00_center(EbPictureBufferDesc *ref_pic_ptr, MeContext *context_ptr,
 #endif
@@ -1535,7 +1539,11 @@ static EbPictureBufferDesc* get_me_reference(
                   level == 1 ? context_ptr->me_ds_ref_array[list_index][ref_pic_index].quarter_picture_ptr :
                                context_ptr->me_ds_ref_array[list_index][ref_pic_index].picture_ptr;
 
+#if FIX_INT_OVERLOW
+    *dist = (int16_t)ABS((int64_t)pcs_ptr->picture_number - (int64_t)context_ptr->me_ds_ref_array[list_index][ref_pic_index].picture_number);
+#else
     *dist = ABS((int16_t)(pcs_ptr->picture_number - context_ptr->me_ds_ref_array[list_index][ref_pic_index].picture_number));
+#endif
     return ref_pic_ptr;
 }
 
@@ -3718,7 +3726,11 @@ void compute_distortion(
     uint64_t sum_ofsq_dist_8x8 = 0;
     for (unsigned i = 0; i < 64; i++) {
 #if FTR_BIAS_STAT
+#if FIX_INT_OVERLOW
+        const  int64_t diff = ((int64_t)context_ptr->me_distortion[21 + i] - (int64_t)mean_dist_8x8);
+#else
         const  int64_t diff = (context_ptr->me_distortion[21 + i] - mean_dist_8x8);
+#endif
         sum_ofsq_dist_8x8 += diff * diff;
 #else
         sum_ofsq_dist_8x8 += (context_ptr->me_distortion[21 + i] - mean_dist_8x8) * (context_ptr->me_distortion[21 + i] - mean_dist_8x8);
