@@ -1392,7 +1392,7 @@ void svt_highbd_inter_predictor_light_pd0(const uint16_t *src, int32_t src_strid
 #if FTR_MEM_OPT
         uint16_t * src_10b ;
         // pack the reference into temp 16bit buffer
-        int32_t stride ;
+        int32_t stride = STRIDE_PACK;
 
         uint8_t offset = INTERPOLATION_OFFSET;
         DECLARE_ALIGNED(16, uint16_t, packed_buf[PACKED_BUFFER_SIZE]);
@@ -1402,12 +1402,12 @@ void svt_highbd_inter_predictor_light_pd0(const uint16_t *src, int32_t src_strid
             src_ptr_2b - offset - (offset*src_stride),
             src_stride,
             (uint16_t *)packed_buf,
-            MAX_SB_SIZE,
+            stride,
             w + (offset << 1),
             h + (offset << 1));
 
-        src_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
-        stride = MAX_SB_SIZE;
+        src_10b = (uint16_t*)packed_buf + offset + (offset * stride);
+
 
 #endif
 #if FTR_MEM_OPT
@@ -1449,7 +1449,7 @@ void svt_inter_predictor_light_pd1(uint8_t *src, int32_t src_stride, uint8_t *ds
 #if FTR_MEM_OPT
         uint16_t * src_10b ;
         // pack the reference into temp 16bit buffer
-        int32_t stride ;
+        int32_t stride = STRIDE_PACK ;
         uint8_t offset = INTERPOLATION_OFFSET;
         DECLARE_ALIGNED(16, uint16_t, packed_buf[PACKED_BUFFER_SIZE]);
         pack_block(
@@ -1458,12 +1458,11 @@ void svt_inter_predictor_light_pd1(uint8_t *src, int32_t src_stride, uint8_t *ds
             src_2b - offset - (offset*src_stride),
             src_stride,
             (uint16_t *)packed_buf,
-            MAX_SB_SIZE,
+            stride,
             w + (offset << 1),
             h + (offset << 1));
 
-        src_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
-        stride = MAX_SB_SIZE;
+        src_10b = (uint16_t*)packed_buf + offset + (offset * stride);
 
 #endif
         convolveHbd[mv_x != 0][mv_y != 0][conv_params->is_compound](

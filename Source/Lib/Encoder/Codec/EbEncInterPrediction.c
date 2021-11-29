@@ -220,7 +220,7 @@ void av1_make_masked_scaled_inter_predictor(uint8_t *src_ptr, uint32_t src_strid
         uint16_t * src_ptr_10b;
 
         // pack the reference into temp 16bit buffer
-        int32_t stride ;
+        int32_t stride = STRIDE_PACK ;
 
         uint8_t offset = INTERPOLATION_OFFSET;
         DECLARE_ALIGNED(16, uint16_t, src16[PACKED_BUFFER_SIZE]);
@@ -230,11 +230,10 @@ void av1_make_masked_scaled_inter_predictor(uint8_t *src_ptr, uint32_t src_strid
             src_ptr_2b - offset - (offset*src_stride),
             src_stride,
             (uint16_t*)src16,
-            MAX_SB_SIZE,
+            stride,
             bwidth + (offset << 1),
             bheight + (offset << 1));
-        src_ptr_10b = (uint16_t*)src16 + offset + (offset * MAX_SB_SIZE);
-        stride = MAX_SB_SIZE;
+        src_ptr_10b = (uint16_t*)src16 + offset + (offset * stride);
 
 #else
         uint16_t *src16 = (uint16_t *) src_ptr;
@@ -1182,8 +1181,8 @@ EbErrorType get_single_prediction_for_obmc_luma_hbd(
 
 #if FTR_MEM_OPT
         // pack the reference into temp 16bit buffer
-        int32_t stride ;
-            uint8_t offset = INTERPOLATION_OFFSET;
+        int32_t stride = STRIDE_PACK ;
+        uint8_t offset = INTERPOLATION_OFFSET;
         DECLARE_ALIGNED(16, uint16_t, packed_buf[PACKED_BUFFER_SIZE]);
         pack_block(
             src_ptr_8b - offset - (offset*src_stride),
@@ -1191,11 +1190,11 @@ EbErrorType get_single_prediction_for_obmc_luma_hbd(
             src_ptr_2b - offset - (offset*src_stride),
             src_stride,
             (uint16_t *)packed_buf,
-            MAX_SB_SIZE,
+            stride,
             bwidth + (offset << 1),
             bheight + (offset << 1));
-        src_ptr_10b = (uint16_t*)packed_buf + offset + (offset*MAX_SB_SIZE) ;
-        stride = MAX_SB_SIZE;
+        src_ptr_10b = (uint16_t*)packed_buf + offset + (offset*stride) ;
+
 #endif
 #if FTR_MEM_OPT
     convolveHbd[subpel_x != 0][subpel_y != 0][is_compound](src_ptr_10b,
@@ -1284,7 +1283,7 @@ EbErrorType get_single_prediction_for_obmc_chroma_hbd(
         DECLARE_ALIGNED(16, uint16_t, packed_buf[PACKED_BUFFER_SIZE]);
         // pack the reference into temp 16bit buffer
         uint8_t offset = INTERPOLATION_OFFSET;
-        int32_t stride ;
+        int32_t stride = STRIDE_PACK ;
 
         pack_block(
             src_ptr_8b - offset - (offset*src_stride),
@@ -1292,11 +1291,11 @@ EbErrorType get_single_prediction_for_obmc_chroma_hbd(
             src_ptr_2b - offset - (offset*src_stride),
             src_stride,
             (uint16_t *)packed_buf,
-            MAX_SB_SIZE,
+            stride,
             bwidth + (offset << 1),
             bheight + (offset << 1));
-        src_ptr_10b = (uint16_t*)packed_buf + offset + (offset*MAX_SB_SIZE);
-        stride = MAX_SB_SIZE;
+        src_ptr_10b = (uint16_t*)packed_buf + offset + (offset*stride);
+
 
 #endif
 #if FTR_MEM_OPT
@@ -1363,11 +1362,11 @@ EbErrorType get_single_prediction_for_obmc_chroma_hbd(
             src_ptr_2b - offset - (offset*src_stride),
             src_stride,
             (uint16_t *)packed_buf,
-            MAX_SB_SIZE,
+            stride,
             bwidth + (offset << 1),
             bheight + (offset << 1));
-        src_ptr_10b = (uint16_t*)packed_buf + offset + (offset*MAX_SB_SIZE);
-        stride = MAX_SB_SIZE;
+        src_ptr_10b = (uint16_t*)packed_buf + offset + (offset*stride);
+
 
 #endif
 #if FTR_MEM_OPT
@@ -2737,7 +2736,7 @@ static void chroma_plane_warped_motion_prediction_sub8x8(
         DECLARE_ALIGNED(16, uint16_t, packed_buf[PACKED_BUFFER_SIZE]);
         // pack the reference into temp 16bit buffer
         uint8_t offset = INTERPOLATION_OFFSET;
-        int32_t stride ;
+        int32_t stride = STRIDE_PACK;
 
         pack_block(
             src_ptr_l0 - offset - (offset*src_stride),
@@ -2745,12 +2744,12 @@ static void chroma_plane_warped_motion_prediction_sub8x8(
             src_ptr_2b_l0 - offset - (offset*src_stride),
             src_stride,
             (uint16_t *)packed_buf,
-            MAX_SB_SIZE,
+            stride,
             bwidth + (offset << 1),
             bheight + (offset << 1));
 
-        src_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
-        stride = MAX_SB_SIZE;
+        src_10b = (uint16_t*)packed_buf + offset + (offset * stride);
+
 
 #endif
 #if FTR_MEM_OPT
@@ -2831,7 +2830,7 @@ static void chroma_plane_warped_motion_prediction_sub8x8(
         DECLARE_ALIGNED(16, uint16_t, packed_buf[PACKED_BUFFER_SIZE]);
         // pack the reference into temp 16bit buffer
         uint8_t offset = INTERPOLATION_OFFSET;
-        int32_t stride ;
+        int32_t stride = STRIDE_PACK;
 
         pack_block(
             src_ptr_l1 - offset - (offset*src_stride),
@@ -2839,12 +2838,12 @@ static void chroma_plane_warped_motion_prediction_sub8x8(
             src_ptr_2b_l1 - offset - (offset*src_stride),
             src_stride,
             (uint16_t *)packed_buf,
-            MAX_SB_SIZE,
+            stride,
             bwidth + (offset << 1),
             bheight + (offset << 1));
 
-        src_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
-        stride = MAX_SB_SIZE;
+        src_10b = (uint16_t*)packed_buf + offset + (offset * stride);
+
 
 #endif
 #if FTR_MEM_OPT
@@ -4696,7 +4695,7 @@ void enc_make_inter_predictor(uint8_t* src_ptr,
         uint16_t *src16_ptr = (uint16_t *)src16_temp;
         int32_t stride ;
         if (src_ptr_2b){
-
+            stride = STRIDE_PACK;
             // pack the reference into temp 16bit buffer
             uint8_t offset = INTERPOLATION_OFFSET;
             uint16_t *src16;
@@ -4708,11 +4707,11 @@ void enc_make_inter_predictor(uint8_t* src_ptr,
                 src_mod_2b - offset - (offset*src_stride),
                 src_stride,
                 (uint16_t*)src16,
-                MAX_SB_SIZE,
+                stride,
                 blk_width + (offset << 1),
                 blk_height + (offset << 1));
-            stride = MAX_SB_SIZE;
-            src16_ptr = (uint16_t*)src16 + offset + (offset *MAX_SB_SIZE);
+
+            src16_ptr = (uint16_t*)src16 + offset + (offset *stride);
         }
         else {
             src16_ptr = (uint16_t *)src_mod;
@@ -7905,7 +7904,7 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
                         blk_geom->bheight_uv);
 #if FTR_MEM_OPT
                     uint8_t offset = INTERPOLATION_OFFSET;
-                    int32_t stride ;
+                    int32_t stride = STRIDE_PACK;
 
                     pack_block(
                         src_ptr - offset - (offset*ref_pic->stride_cb),
@@ -7913,11 +7912,11 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
                         src_ptr_2b - offset - (offset*ref_pic->stride_bit_inc_cb),
                         ref_pic->stride_bit_inc_cb,
                         (uint16_t*)packed_buf,
-                        MAX_SB_SIZE,
+                        stride,
                         b4_w + (offset << 1),
                         b4_h + (offset << 1));
-                    src_ptr_10b = (uint16_t*)packed_buf+ offset + (offset*MAX_SB_SIZE);
-                    stride = MAX_SB_SIZE;
+                    src_ptr_10b = (uint16_t*)packed_buf+ offset + (offset*stride);
+
 
 #endif
 #if FTR_MEM_OPT
@@ -8012,11 +8011,11 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
                         src_ptr_2b - offset - (offset*ref_pic->stride_bit_inc_cr),
                         ref_pic->stride_bit_inc_cr,
                         (uint16_t*)packed_buf,
-                        MAX_SB_SIZE,
+                        stride,
                         b4_w + (offset << 1),
                         b4_h + (offset << 1));
-                    src_ptr_10b = (uint16_t*)packed_buf+ offset + (offset*MAX_SB_SIZE);
-                    stride = MAX_SB_SIZE;
+                    src_ptr_10b = (uint16_t*)packed_buf+ offset + (offset*stride);
+
 
 
 #endif
@@ -8104,9 +8103,10 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
 #if FTR_MEM_OPT
 
         // pack the reference into temp 16bit buffer
-        int32_t stride;
+        int32_t stride ;
         uint8_t offset = INTERPOLATION_OFFSET;
         if (ref_pic_list0->buffer_bit_inc_y) {
+            stride = STRIDE_PACK;
 
             pack_block(
                 src_ptr - offset - (offset*ref_pic_list0->stride_y),
@@ -8114,11 +8114,11 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
                 src_ptr_2b - offset - (offset*ref_pic_list0->stride_bit_inc_y),
                 ref_pic_list0->stride_bit_inc_y,
                 (uint16_t *)packed_buf,
-                MAX_SB_SIZE,
+                stride,
                 bwidth + (offset << 1),
                 bheight + (offset << 1));
-            src_ptr_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
-            stride = MAX_SB_SIZE;
+            src_ptr_10b = (uint16_t*)packed_buf + offset + (offset * stride);
+
         }
         else {
             //src_ptr_10b = (uint16_t *)src_ptr;
@@ -8212,6 +8212,7 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
             // pack the reference into temp 16bit buffer
 
             if (ref_pic_list0->buffer_bit_inc_cb) {
+                stride = STRIDE_PACK;
                 offset = INTERPOLATION_OFFSET;
                 pack_block(
                     src_ptr - offset - (offset*ref_pic_list0->stride_cb),
@@ -8219,12 +8220,12 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
                     src_ptr_2b - offset - (offset*ref_pic_list0->stride_bit_inc_cb),
                     ref_pic_list0->stride_bit_inc_cb,
                     (uint16_t *)packed_buf,
-                    MAX_SB_SIZE,
+                    stride,
                     blk_geom->bwidth_uv + (offset << 1),
                     blk_geom->bheight_uv + (offset << 1));
 
-                src_ptr_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
-                stride = MAX_SB_SIZE;
+                src_ptr_10b = (uint16_t*)packed_buf + offset + (offset * stride);
+
             }
             else {
                // src_ptr_10b =(uint16_t *) src_ptr;
@@ -8331,18 +8332,19 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
             // pack the reference into temp 16bit buffer
 
             if (ref_pic_list0->buffer_bit_inc_cr) {
+                stride = STRIDE_PACK;
                 pack_block(
                     src_ptr - offset - (offset*ref_pic_list0->stride_cr),
                     ref_pic_list0->stride_cb,
                     src_ptr_2b - offset - (offset*ref_pic_list0->stride_bit_inc_cr),
                     ref_pic_list0->stride_bit_inc_cr,
                     (uint16_t *)packed_buf,
-                    MAX_SB_SIZE,
+                    stride,
                     blk_geom->bwidth_uv + (offset << 1),
                     blk_geom->bheight_uv + (offset << 1));
 
-                src_ptr_10b = (uint16_t*)packed_buf + offset + (offset * MAX_SB_SIZE);
-                stride = MAX_SB_SIZE;
+                src_ptr_10b = (uint16_t*)packed_buf + offset + (offset * stride);
+
             }
             else {
 
@@ -8470,7 +8472,7 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
 
         // pack the reference into temp 16bit buffer
         uint8_t offset = INTERPOLATION_OFFSET;
-        uint16_t stride ;
+        uint16_t stride =STRIDE_PACK;
 
         pack_block(
             src_ptr - offset - (offset*ref_pic_list0->stride_y),
@@ -8478,11 +8480,11 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
             src_ptr_2b - offset - (offset*ref_pic_list0->stride_bit_inc_y),
             ref_pic_list0->stride_bit_inc_y,
             (uint16_t *)packed_buf,
-            MAX_SB_SIZE,
+            stride,
             bwidth + (offset << 1),
             bheight + (offset << 1));
-        src_ptr_10b = (uint16_t *)packed_buf + offset + (offset * MAX_SB_SIZE);
-        stride = MAX_SB_SIZE;
+        src_ptr_10b = (uint16_t *)packed_buf + offset + (offset * stride);
+
 
 #endif
 
@@ -8618,12 +8620,12 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
             src_ptr_2b - offset - (offset*ref_pic_list1->stride_bit_inc_cb),
             ref_pic_list1->stride_bit_inc_cb,
             (uint16_t *)packed_buf,
-            MAX_SB_SIZE,
+            stride,
             blk_geom->bwidth_uv + (offset << 1),
             blk_geom->bheight_uv + (offset << 1));
 
-        src_ptr_10b = (uint16_t *)packed_buf + offset + (offset * MAX_SB_SIZE) ;
-        stride = MAX_SB_SIZE;
+        src_ptr_10b = (uint16_t *)packed_buf + offset + (offset * stride) ;
+
 
 #endif
 
@@ -8752,12 +8754,12 @@ EbErrorType av1_inter_prediction_16bit_pipeline(
                 src_ptr_2b - offset - (offset*ref_pic_list1->stride_bit_inc_cr),
                 ref_pic_list1->stride_bit_inc_cr,
                 (uint16_t *)packed_buf,
-                MAX_SB_SIZE,
+                stride,
                 blk_geom->bwidth_uv + (offset << 1),
                 blk_geom->bheight_uv + (offset << 1));
 
-            src_ptr_10b = (uint16_t *)packed_buf + offset + (offset * MAX_SB_SIZE);
-            stride = MAX_SB_SIZE;
+            src_ptr_10b = (uint16_t *)packed_buf + offset + (offset * stride);
+
 
 
 #endif
