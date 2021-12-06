@@ -240,6 +240,9 @@ void svt_av1_end_first_pass(PictureParentControlSet *pcs_ptr) {
                      pcs_ptr->scs_ptr->twopass.stats_buf_ctx,
                      offsetof(STATS_BUFFER_CTX, total_stats),
                      pcs_ptr->picture_number + 1);
+#elif FIX_INVALID_PTR_AFTER_REALLOC_2
+        FIRSTPASS_STATS total_stats = *twopass->stats_buf_ctx->total_stats;
+        output_stats(scs_ptr, &total_stats, pcs_ptr->picture_number + 1);
 #else
         output_stats(scs_ptr, twopass->stats_buf_ctx->total_stats, pcs_ptr->picture_number + 1);
 #endif
@@ -673,6 +676,13 @@ void first_pass_frame_end(PictureParentControlSet *pcs_ptr, const int64_t ts_dur
 #if CLN_2PASS
 #if FIX_INVALID_PTR_AFTER_REALLOC
         pcs_ptr, &stats, ts_duration);
+#elif FIX_ISSUE_121
+        pcs_ptr,
+        &stats,
+        (const int)pcs_ptr->picture_number,
+        skip_frame,
+        bypass_blk_step,
+        ts_duration);
 #else
         pcs_ptr, &stats, (const int)pcs_ptr->picture_number, ts_duration);
 #endif
@@ -765,6 +775,10 @@ void samepred_pass_frame_end(PictureParentControlSet *pcs_ptr, const double ts_d
                          twopass->stats_buf_ctx,
                          offsetof(STATS_BUFFER_CTX, total_stats),
                          scs_ptr->encode_context_ptr->terminating_picture_number + 1);
+#elif FIX_INVALID_PTR_AFTER_REALLOC_2
+            FIRSTPASS_STATS total_stats = *twopass->stats_buf_ctx->total_stats;
+            output_stats(
+                scs_ptr, &total_stats, scs_ptr->encode_context_ptr->terminating_picture_number + 1);
 #else
             output_stats(scs_ptr,
                          twopass->stats_buf_ctx->total_stats,
